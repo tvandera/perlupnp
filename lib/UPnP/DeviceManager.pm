@@ -13,7 +13,7 @@ use Time::HiRes;
 use UPnP::Common;
 use HTTP::Response;
 
-use     vars qw($VERSION @ISA);
+use		vars qw($VERSION @ISA);
 
 require Exporter;
 
@@ -26,16 +26,16 @@ use constant DEFAULT_LEASE_TIME => 1800;
 use constant DEFAULT_NOTIFICATION_PORT => 4003;
 
 sub new {
-    my($self, %args) = @_;
+	my($self, %args) = @_;
 	my $class = ref($self) || $self;
 
-    $self = $class->SUPER::new(%args);
+	$self = $class->SUPER::new(%args);
 
-    my $notificationPort = $args{NotificationPort} || 
+	my $notificationPort = $args{NotificationPort} || 
 		DEFAULT_NOTIFICATION_PORT;
 
 	# Create the socket on which SSDP notifications go out
-    $self->{_ssdpNotificationSocket} = IO::Socket::INET->new(
+	$self->{_ssdpNotificationSocket} = IO::Socket::INET->new(
 											Proto => 'udp',
 											LocalPort => $notificationPort) ||
 		croak("Error creating SSDP notification socket: $!\n");
@@ -363,7 +363,7 @@ our @ISA = qw(UPnP::Common::Device);
 
 sub new {
 	my $self = shift;
-    my $class = ref($self) || $self;
+	my $class = ref($self) || $self;
 	my %args = @_;
 
 	$self = $class->SUPER::new(%args);
@@ -437,7 +437,7 @@ sub matches {
 		push @matches, [$self, $self->UDN, $self->UDN];
 		push @matches, [$self, $self->UDN . '::' . 
 						$self->deviceType, $self->deviceType];
- 		for my $service ($self->services) {
+		for my $service ($self->services) {
 			push @matches, [$self, $self->UDN . '::' . 
 							$service->serviceType, $service->serviceType];
 		}
@@ -455,7 +455,7 @@ sub matches {
 		push @matches, [$self, $self->UDN . '::' . $target, $target];
 	}
 	else {
- 		for my $service ($self->services) {
+		for my $service ($self->services) {
 			if ($target eq $service->serviceType) {
 				push @matches, [$self, 
 								$self->UDN . '::' . 
@@ -504,7 +504,7 @@ our @ISA = qw(UPnP::Common::Service);
 
 sub new {
 	my $self = shift;
-    my $class = ref($self) || $self;
+	my $class = ref($self) || $self;
 	my %args = @_;
 
 	$self = $class->SUPER::new;
@@ -701,7 +701,7 @@ use SOAP::Lite;
 use SOAP::Transport::HTTP;
 use File::Spec::Functions qw(:ALL);
 
-use     vars qw($AUTOLOAD @ISA);
+use		vars qw($AUTOLOAD @ISA);
 
 our @ISA = qw(SOAP::Transport::HTTP::Server);
 
@@ -802,7 +802,7 @@ sub handle {
 		}
 	}
 	elsif ($service = $self->{_controlURLs}->{$uri}) {
-	    if ($r->header('SOAPAction') =~ /#(.+?)"?$/) {
+		if ($r->header('SOAPAction') =~ /#(.+?)"?$/) {
 			my $actionName = $1;
 			my $action;
 			if ($actionName ne 'QueryStateVariable') {
@@ -898,7 +898,7 @@ use HTTP::Daemon;
 use SOAP::Lite;
 use SOAP::Transport::HTTP;
 
-use     vars qw(@ISA);
+use		vars qw(@ISA);
 
 our @ISA = qw(SOAP::Serializer);
 
@@ -995,7 +995,7 @@ use Time::HiRes;
 
 sub new {
 	my $self = shift;
-    my $class = ref($self) || $self;
+	my $class = ref($self) || $self;
 	my %args = @_;
 
 	$self = bless {}, $class;
@@ -1087,7 +1087,7 @@ UPnP::DeviceManager - A UPnP Device host implementation.
 
   my $dm = UPnP::DeviceManager->new;
   my $device = $dm->registerDevice(DescriptionFile => 'description.xml',
-                                   ResourceDirectory => '.');
+								   ResourceDirectory => '.');
   my $service = $device->getService('urn:schemas-upnp-org:service:TestService:1');
   $service->dispatchTo('MyPackage::MyClass');
   $service->setValue('TestVariable', 'foo');
@@ -1147,7 +1147,7 @@ key-value pairs as optional arguments (default values are listed
 below):
 
 
-    NotificationPort  Port from which SSDP notifications are made    4003
+	NotificationPort  Port from which SSDP notifications are made	 4003
 
 A DeviceManager only becomes functional after devices are registered
 with it using the C<registerDevice> method and the sockets it creates
@@ -1163,16 +1163,16 @@ Registers a device with the DeviceManager. This call takes the
 following optional key-value pairs as arguments (default values are
 listed below):
 
-    DevicePort      Port on which the device serves requests        4004
-    DescriptionURI  The relative URI for the description document   /description.xml
-    LeaseTime       The length of the device's lease                1800
+	DevicePort		Port on which the device serves requests		4004
+	DescriptionURI	The relative URI for the description document	/description.xml
+	LeaseTime		The length of the device's lease				1800
 
 The call also takes the following B<required> arguments:
 
-    Description        A string containing the XML device description
-    DescriptionFile    The path to a file containing the XML device description
-    ResourceDirectory  The path to a directory containing resources referred
-                       to in the device description
+	Description		   A string containing the XML device description
+	DescriptionFile	   The path to a file containing the XML device description
+	ResourceDirectory  The path to a directory containing resources referred
+					   to in the device description
 
 Only one of the Description or DescriptionFile arguments should be
 specified.
@@ -1294,12 +1294,12 @@ might implement a GetTemperature action:
   package Thermometer;
 
   sub GetTemperature {
-    my $class = shift;
-    my $scale = shift;
+	my $class = shift;
+	my $scale = shift;
 
-    Code to look up temperature and return in the given scale...
+	Code to look up temperature and return in the given scale...
 
-    return $temp;
+	return $temp;
   }
  
 
@@ -1333,16 +1333,16 @@ above is:
   $service->onAction(\&actionSub);
   ...
   sub actionSub {
-    my $service = shift;
-    my $action = shift;
+	my $service = shift;
+	my $action = shift;
   
-    if ($action eq 'GetTemperature') {
-      my $scale = shift;
-      Code to look up temperature and return in the given scale...
-      return $temp;
-    }
+	if ($action eq 'GetTemperature') {
+	  my $scale = shift;
+	  Code to look up temperature and return in the given scale...
+	  return $temp;
+	}
 
-    return undef;
+	return undef;
   }
 
 =item onQuery ( CALLBACK )
@@ -1360,11 +1360,11 @@ onQuery callback or set using the C<setValue> method).
   $service->onAction(\&querySub);
 
   sub onquery {
-    my ($service, $name, $val) = @_;
+	my ($service, $name, $val) = @_;
 
-    Code to look up value of state variable...
+	Code to look up value of state variable...
 
-    return $newval;
+	return $newval;
   }
 
 =back

@@ -13,7 +13,7 @@ use HTTP::Headers;
 use LWP::UserAgent;
 use UPnP::Common;
 
-use     vars qw($VERSION @ISA);
+use		vars qw($VERSION @ISA);
 
 require Exporter;
 
@@ -25,28 +25,28 @@ use constant DEFAULT_SUBSCRIPTION_PORT => 8058;
 use constant DEFAULT_SUBSCRIPTION_URL => '/eventSub';
 
 sub new {
-    my($self, %args) = @_;
+	my($self, %args) = @_;
 	my $class = ref($self) || $self;
 
-    $self = $class->SUPER::new(%args);
+	$self = $class->SUPER::new(%args);
 
-    my $searchPort = $args{SearchPort} || DEFAULT_SSDP_SEARCH_PORT;
-    my $subscriptionPort = $args{SubscriptionPort} || DEFAULT_SUBSCRIPTION_PORT;
+	my $searchPort = $args{SearchPort} || DEFAULT_SSDP_SEARCH_PORT;
+	my $subscriptionPort = $args{SubscriptionPort} || DEFAULT_SUBSCRIPTION_PORT;
 	my $maxWait = $args{MaxWait} || 3;
 
 	# Create the socket on which search requests go out
-    $self->{_searchSocket} = IO::Socket::INET->new(Proto => 'udp',
+	$self->{_searchSocket} = IO::Socket::INET->new(Proto => 'udp',
 												   LocalPort => $searchPort) ||
 	croak("Error creating search socket: $!\n");
 	setsockopt($self->{_searchSocket}, 
 			   IP_LEVEL,
 			   IP_MULTICAST_TTL,
 			   pack 'I', 4);
-    $self->{_maxWait} = $maxWait;
+	$self->{_maxWait} = $maxWait;
 
 	# Create the socket on which we'll listen for events to which we are
 	# subscribed.
-    $self->{_subscriptionSocket} = HTTP::Daemon->new(
+	$self->{_subscriptionSocket} = HTTP::Daemon->new(
 											 LocalPort => $subscriptionPort) ||
 	croak("Error creating subscription socket: $!\n");
 	$self->{_subscriptionURL} = $args{SubscriptionURL} || DEFAULT_SUBSCRIPTION_URL;
@@ -510,7 +510,7 @@ sub new {
 	my ($self, %args) = @_;
 	my $class = ref($self) || $self;
 
-    $self = $class->SUPER::new(%args);
+	$self = $class->SUPER::new(%args);
 	if ($args{ControlPoint}) {
 		$self->{_controlPoint} = $args{ControlPoint};
 		weaken($self->{_controlPoint});
@@ -520,10 +520,10 @@ sub new {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
 	my $superior = "SUPER::$attr";
 	my $val = $self->$superior(@_);
@@ -540,7 +540,7 @@ sub AUTOLOAD {
 }
 
 sub controlProxy {
-    my $self = shift;
+	my $self = shift;
 
 	$self->_loadDescription;
 
@@ -548,7 +548,7 @@ sub controlProxy {
 }
 
 sub queryStateVariable {
-    my $self = shift;
+	my $self = shift;
 	my $name = shift;
 
 	$self->_loadDescription;
@@ -562,8 +562,8 @@ sub queryStateVariable {
 		->proxy($self->controlURL)
 		->call('QueryStateVariable' => 
 			   SOAP::Data->name('varName')
-			   		   ->uri('urn:schemas-upnp-org:control-1-0')
-			   		   ->value($name));
+					   ->uri('urn:schemas-upnp-org:control-1-0')
+					   ->value($name));
 
 	if ($result->fault()) {
 		carp("Query failed with fault " . $result->faultstring());
@@ -574,7 +574,7 @@ sub queryStateVariable {
 }
 
 sub subscribe {
-    my $self = shift;
+	my $self = shift;
 	my $callback = shift;
 	my $timeout = shift;
 	my $cp = $self->{_controlPoint};
@@ -617,7 +617,7 @@ sub subscribe {
 }
 
 sub unsubscribe {
-    my $self = shift;
+	my $self = shift;
 	my $subscription = shift;
 
 	my $url = $self->eventSubURL;
@@ -688,7 +688,7 @@ use vars qw($AUTOLOAD);
 
 
 sub new {
-    my($class, $service) = @_;
+	my($class, $service) = @_;
 
 	return bless {
 		_service => $service,
@@ -697,15 +697,15 @@ sub new {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
+	my $self = shift;
 	my $service = $self->{_service};
 	my $proxy = $self->{_proxy};
-    my $method = $AUTOLOAD;
-    $method =~ s/.*:://;
-    return if $method eq 'DESTROY';   
+	my $method = $AUTOLOAD;
+	$method =~ s/.*:://;
+	return if $method eq 'DESTROY';	  
 
 	my $action = $service->getAction($method);
-    croak "invalid method: ->$method()" unless $action;
+	croak "invalid method: ->$method()" unless $action;
 
 	my @inArgs;
 	for my $arg ($action->inArguments) {
@@ -778,10 +778,10 @@ sub getValue {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $method = $AUTOLOAD;
-    $method =~ s/.*:://;
-    return if $method eq 'DESTROY';   
+	my $self = shift;
+	my $method = $AUTOLOAD;
+	$method =~ s/.*:://;
+	return if $method eq 'DESTROY';	  
 
 	return $self->{_som}->$method(@_);
 }
@@ -793,9 +793,9 @@ package UPnP::ControlPoint::Search;
 use strict;
 
 sub new {
-    my($class, %args) = @_;
+	my($class, %args) = @_;
 
-    return bless {
+	return bless {
 		_callback => $args{Callback},
 		_type => $args{Type},
 		_udn => $args{UDN},
@@ -854,9 +854,9 @@ use Scalar::Util qw(weaken);
 use Carp;
 
 sub new {
-    my($class, %args) = @_;
+	my($class, %args) = @_;
 
-    my $self = bless {
+	my $self = bless {
 		_callback => $args{Callback},
 		_sid => $args{SID},
 		_timeout => $args{Timeout},
@@ -956,21 +956,21 @@ UPnP::ControlPoint - A UPnP ControlPoint implementation.
 
   my $cp = UPnP::ControlPoint->new;
   my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1", 
-                                 \&callback);
+								 \&callback);
   $cp->handle;
 
   sub callback {
-    my ($search, $device, $action) = @_;
+	my ($search, $device, $action) = @_;
 
-    if ($action eq 'deviceAdded') {
-      print("Device: " . $device->friendlyName . " added. Device contains:\n");
-      for my $service ($device->services) {
-        print("\tService: " . $service->serviceType . "\n");
-      }
-    }
-    elsif ($action eq 'deviceRemoved') {
-      print("Device: " . $device->friendlyName . " removed\n");
-    }
+	if ($action eq 'deviceAdded') {
+	  print("Device: " . $device->friendlyName . " added. Device contains:\n");
+	  for my $service ($device->services) {
+		print("\tService: " . $service->serviceType . "\n");
+	  }
+	}
+	elsif ($action eq 'deviceRemoved') {
+	  print("Device: " . $device->friendlyName . " removed\n");
+	}
   }
 
 =head1 DESCRIPTION
@@ -1034,10 +1034,10 @@ key-value pairs as optional arguments (default values are listed
 below):
 
 
-    SearchPort        Port on which search requests are received       8008
-    SubscriptionPort  Port on which event notification are received    8058
-    SubscriptionURL   URL on which event notification are received     /eventSub
-    MaxWait           Max wait before search responses should be sent  3
+	SearchPort		  Port on which search requests are received	   8008
+	SubscriptionPort  Port on which event notification are received	   8058
+	SubscriptionURL	  URL on which event notification are received	   /eventSub
+	MaxWait			  Max wait before search responses should be sent  3
 
 While this call creates the sockets necessary for the ControlPoint to
 function, the ControlPoint is not active until its sockets are
@@ -1097,14 +1097,14 @@ criterion.
 
 
   sub callback {
-    my ($search, $device, $action) = @_;
+	my ($search, $device, $action) = @_;
 
-    if ($action eq 'deviceAdded') {
-      print("Device: " . $device->friendlyName . " added.\n");
-    }
-    elsif ($action eq 'deviceRemoved') {
-      print("Device: " . $device->friendlyName . " removed\n");
-    }
+	if ($action eq 'deviceAdded') {
+	  print("Device: " . $device->friendlyName . " added.\n");
+	}
+	elsif ($action eq 'deviceRemoved') {
+	  print("Device: " . $device->friendlyName . " removed\n");
+	}
   }
 
 
@@ -1247,7 +1247,7 @@ service.
 Returns the
 L<C<UPnP::Common::StateVariable>|/UPnP::Common::StateVariable>
 object corresponding to the state variable specified by the C<NAME>
-parameter.  Returns C<undef> if no such state variable exists.
+parameter.	Returns C<undef> if no such state variable exists.
 
 =item controlProxy
 
@@ -1275,12 +1275,12 @@ of the state variables whose values are included in the corresponding
 GENA event:
 
   sub eventCallback {
-    my ($service, %properties) = @_;
+	my ($service, %properties) = @_;
 
-    print("Event received for service " . $service->serviceId . "\n");
-    while (my ($key, $val) = each %properties) {
+	print("Event received for service " . $service->serviceId . "\n");
+	while (my ($key, $val) = each %properties) {
 	  print("\tProperty ${key}'s value is " . $val . "\n");
-    }
+	}
   }
 
 

@@ -7,7 +7,7 @@ use warnings;
 use HTTP::Headers;
 use IO::Socket;
 
-use     vars qw(@EXPORT $VERSION @ISA $AUTOLOAD);
+use		vars qw(@EXPORT $VERSION @ISA $AUTOLOAD);
 
 require Exporter;
 
@@ -15,10 +15,10 @@ our @ISA = qw(Exporter);
 our $VERSION = '0.03';
 
 my %XP_CONSTANTS = (
-    SSDP_IP => "239.255.255.250",
-    SSDP_PORT => 1900,
-    CRLF => "\015\012",
-    IP_LEVEL => getprotobyname('ip') || 0,
+	SSDP_IP => "239.255.255.250",
+	SSDP_PORT => 1900,
+	CRLF => "\015\012",
+	IP_LEVEL => getprotobyname('ip') || 0,
 );
 
 my @MD_CONSTANTS = qw(IP_MULTICAST_TTL IP_ADD_MEMBERSHIP);
@@ -113,18 +113,18 @@ sub parseHTTPHeaders {
 	my($key, $val);
   HEADER:
 	while ($buf =~ s/^([^\012]*)\012//) {
-	    $_ = $1;
-	    s/\015$//;
-	    if (/^([^:\s]+)\s*:\s*(.*)/) {
+		$_ = $1;
+		s/\015$//;
+		if (/^([^:\s]+)\s*:\s*(.*)/) {
 			$headers->push_header($key => $val) if $key;
 			($key, $val) = ($1, $2);
-	    }
-	    elsif (/^\s+(.*)/) {
+		}
+		elsif (/^\s+(.*)/) {
 			$val .= " $1";
-	    }
-	    else {
+		}
+		else {
 			last HEADER;
-	    }
+		}
 	}
 	$headers->push_header($key => $val) if $key;
 
@@ -146,7 +146,7 @@ sub new {
 	my $self = shift;
 	my $class = ref($self) || $self;
 
-    return bless {
+	return bless {
 		_parser => UPnP::Common::Parser->new,
 	}, $class;
 }
@@ -262,7 +262,7 @@ sub new {
 	my $class = ref($self) || $self;
 	my %args = @_;
 
-    $self = bless {}, $class;
+	$self = bless {}, $class;
 	if ($args{Location}) {
 		$self->location($args{Location});
 	}
@@ -271,21 +271,21 @@ sub new {
 }
 
 sub addChild {
-    my $self = shift;
+	my $self = shift;
 	my $child = shift;
 
 	push @{$self->{_children}}, $child;
 }
 
 sub addService {
-    my $self = shift;
+	my $self = shift;
 	my $service = shift;
 
 	push @{$self->{_services}}, $service;
 }
 
 sub parent {
-    my $self = shift;
+	my $self = shift;
 
 	if (@_) {
 		$self->{_parent} = shift;
@@ -296,7 +296,7 @@ sub parent {
 }
 
 sub children {
-    my $self = shift;
+	my $self = shift;
 	
 	if (ref $self->{_children}) {
 		return @{$self->{_children}};
@@ -306,7 +306,7 @@ sub children {
 }
 
 sub services {
-    my $self = shift;
+	my $self = shift;
 	
 	if (ref $self->{_services}) {
 		return @{$self->{_services}};
@@ -316,7 +316,7 @@ sub services {
 }
 
 sub getService {
-    my $self = shift;
+	my $self = shift;
 	my $id = shift;
 
 	for my $service ($self->services) {
@@ -336,12 +336,12 @@ sub isProperty {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
-    croak "invalid attribute method: ->$attr()" unless $deviceProperties{$attr};
+	croak "invalid attribute method: ->$attr()" unless $deviceProperties{$attr};
 
 	$self->{uc $attr} = shift if @_;
 	return $self->{uc $attr};
@@ -366,16 +366,16 @@ sub new {
 	my $self = shift;
 	my $class = ref($self) || $self;
 
-    return bless {}, $class;
+	return bless {}, $class;
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
-    croak "invalid attribute method: ->$attr()" unless $serviceProperties{$attr};
+	croak "invalid attribute method: ->$attr()" unless $serviceProperties{$attr};
 
 	$self->{uc $attr} = shift if @_;
 	return $self->{uc $attr};
@@ -413,7 +413,7 @@ sub actions {
 }
 
 sub getAction {
- 	my $self = shift;
+	my $self = shift;
 	my $name = shift;
 
 	$self->_loadDescription;
@@ -426,7 +426,7 @@ sub getAction {
 }
 
 sub stateVariables {
- 	my $self = shift;
+	my $self = shift;
 
 	$self->_loadDescription;
 
@@ -438,7 +438,7 @@ sub stateVariables {
 }
 
 sub getStateVariable {
- 	my $self = shift;
+	my $self = shift;
 	my $name = shift;
 
 	$self->_loadDescription;
@@ -585,12 +585,12 @@ sub new {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
-    croak "invalid attribute method: ->$attr()" unless $actionProperties{$attr};
+	croak "invalid attribute method: ->$attr()" unless $actionProperties{$attr};
 
 	$self->{uc $attr} = shift if @_;
 	return $self->{uc $attr};
@@ -646,12 +646,12 @@ sub new {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
-    croak "invalid attribute method: ->$attr()" unless $argumentProperties{$attr};
+	croak "invalid attribute method: ->$attr()" unless $argumentProperties{$attr};
 
 	$self->{uc $attr} = shift if @_;
 	return $self->{uc $attr};
@@ -682,12 +682,12 @@ sub SOAPType {
 }
 
 sub AUTOLOAD {
-    my $self = shift;
-    my $attr = $AUTOLOAD;
-    $attr =~ s/.*:://;
-    return if $attr eq 'DESTROY';   
+	my $self = shift;
+	my $attr = $AUTOLOAD;
+	$attr =~ s/.*:://;
+	return if $attr eq 'DESTROY';	
 
-    croak "invalid attribute method: ->$attr()" unless $varProperties{$attr};
+	croak "invalid attribute method: ->$attr()" unless $varProperties{$attr};
 
 	$self->{uc $attr} = shift if @_;
 	return $self->{uc $attr};
@@ -708,7 +708,7 @@ use XML::Parser::Lite;
 # 0 - The element name.
 # 1 - A hash ref representing the element attributes.
 # 2 - An array ref holding either child elements or concatenated
-#     character data.
+#	  character data.
 
 sub new {
 	my $class = shift;
@@ -722,8 +722,8 @@ sub parse {
 
 	$parser->setHandlers(Final => sub { shift; $self->final(@_) },
 						 Start => sub { shift; $self->start(@_) },
-						 End   => sub { shift; $self->end(@_)   },
-						 Char  => sub { shift; $self->char(@_)  },);
+						 End   => sub { shift; $self->end(@_)	},
+						 Char  => sub { shift; $self->char(@_)	},);
 	$parser->parse(shift);
 }
 
@@ -736,8 +736,8 @@ sub final {
   undef $self->{_values};
   $parser->setHandlers(Final => undef, 
 					   Start => undef, 
-					   End   => undef, 
-					   Char  => undef,);
+					   End	 => undef, 
+					   Char	 => undef,);
   $self->{_done};
 }
 
@@ -751,7 +751,7 @@ sub end {
   $done->[2] = defined $done->[3] ? join('',@{$done->[3]}) : '' unless ref $done->[2];
   undef $done->[3]; 
   @{$self->{_values}} ? (push @{$self->{_values}->[-1]->[2]}, $done)
-                      : ($self->{_done} = $done);
+					  : ($self->{_done} = $done);
 }
 
 1;
