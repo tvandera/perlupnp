@@ -1,11 +1,333 @@
 package UPnP::DeviceManager;
 
+=pod
+
+=head1 NAME
+
+UPnP::DeviceManager - A UPnP Device host implementation.
+
+=head1 SYNOPSIS
+
+  use UPnP;
+
+  my $dm = UPnP::DeviceManager->new;
+  my $device = $dm->registerDevice(DescriptionFile => 'description.xml',
+								   ResourceDirectory => '.');
+  my $service = $device->getService('urn:schemas-upnp-org:service:TestService:1');
+  $service->dispatchTo('MyPackage::MyClass');
+  $service->setValue('TestVariable', 'foo');
+  $dm->handle;
+
+=head1 DESCRIPTION
+
+Implements a UPnP Device host. This module implements the various
+aspects of the UPnP architecture from the standpoint of a host of
+one or more devices:
+
+=over 4
+
+=item * Discovery
+
+Devices registered with the DeviceManager will automatically advertise
+themselves and respond to UPnP searches.
+
+=item * Description 
+
+Devices register themselves with description documents. These
+descriptions are served via HTTP to interested ControlPoints.
+
+=item * Control 
+
+Devices respond to action invocations and state queries from
+ControlPoints.
+
+=item * Eventing 
+
+Changes to device state result in events sent to interested
+subscribers.
+
+=back
+
+Since the UPnP architecture leverages several existing protocols such
+as TCP, UDP, HTTP and SOAP, this module requires several Perl modules
+that implement these protocols. These include
+L<IO::Socket::INET|IO::Socket::INET>,
+L<LWP::UserAgent|LWP::UserAgent>, L<HTTP::Daemon|HTTP::Daemon> and
+C<SOAP::Lite> (L<http://www.soaplite.com>).
+
+=head1 METHODS
+
+=head2 UPnP::DeviceManager
+
+A Device implementor will generally create a single instance of
+the C<UPnP::DeviceManager> class and register one or more devices
+with it.
+
+=over 4
+
+=item new ( [ARGS] )
+
+Creates a C<UPnP::DeviceManager> object. Accepts the following
+key-value pairs as optional arguments (default values are listed
+below):
+
+
+	NotificationPort  Port from which SSDP notifications are made	 4003
+
+A DeviceManager only becomes functional after devices are registered
+with it using the C<registerDevice> method and the sockets it creates
+are serviced. Socket management can be done in one of two ways: by
+invoking the C<handle> method; or by externally selecting the
+DeviceManage's C<sockets>, invoking the C<handleOnce> method as each
+becomes ready for reading, and invoking the C<heartbeat> method on a
+time to send out any pending device notifications.
+
+=item registerDevice ( [ARGS] )
+
+Registers a device with the DeviceManager. This call takes the
+following optional key-value pairs as arguments (default values are
+listed below):
+
+	DevicePort		Port on which the device serves requests		4004
+	DescriptionURI	The relative URI for the description document	/description.xml
+	LeaseTime		The length of the device's lease				1800
+
+The call also takes the following B<required> arguments:
+
+	Description		   A string containing the XML device description
+	DescriptionFile	   The path to a file containing the XML device description
+	ResourceDirectory  The path to a directory containing resources referred
+					   to in the device description
+
+Only one of the Description or DescriptionFile arguments should be
+specified.
+
+If successful, returns a
+L<C<UPnP::DeviceManager::Device>|/UPnP::DeviceManager::Device> object.
+The device itself does not advertise itself till its C<start> method
+is invoked.
+
+=item devices
+
+Returns a list of registered devices.
+
+=item sockets
+
+Returns a list of sockets that need to be serviced for the
+DeviceManager to correctly function. This method is generally used in
+conjunction with the C<handleOnce> method by users who want to run
+their own C<select> loop.  This list of sockets should be selected for
+reading and C<handleOnce> is invoked for each socket as it beoms ready
+for reading. This method should only be called I<after> all devices
+have been registered.
+
+=item handleOnce ( SOCKET )
+
+Handles the function of reading from a DeviceManager socket when it is
+ready (as indicated by a C<select>). This method is used by developers
+who want to run their own C<select> loop.
+
+=item heartbeat
+
+Sends any pending notifications and returns a timeout value after
+which this method should be invoked again. This method is used by
+developers who want to run their own C<select> loop.
+
+=item handle
+
+Takes over handling of all ControlPoint sockets. Runs its own
+C<select> loop, handling individual sockets as they become available
+for reading and invoking the C<heartbeat> call at the required
+interval.  Returns only when a call to C<stopHandling> is made
+(generally from a Device callback or a signal handler). This
+method is an alternative to using the C<sockets>, C<handleOnce>
+and C<heartbeat> methods.
+
+=item stopHandling
+
+Ends the C<select> loop run by C<handle>. This method is generally
+invoked from a Device callback or a signal handler.
+
+=back
+
+=head2 UPnP::DeviceManager::Device
+
+A C<UPnP::DeviceManager::Device> object is obtained by registering a
+device with a DeviceManager. This class should not be directly
+instantiated.
+
+=over 4
+
+=item start
+
+Called to start a device. Sends out the SSDP initial announcement of
+the device's presence and allows the device to respond to SSDP
+queries.
+
+=item stop
+
+Called to stop a device. Sends out an SSDP byebye announcement.
+
+=item advertise
+
+Called to manually send out an SSDP announcement for the device, its
+child devices, and its services. Can be called if SSDP announcements
+should be sent out more frequently than the device's lease
+time. Otherwise, announcements are sent automatically when the
+device's lease runs out.
+
+=item leastTime
+
+The lease length of the device.
+
+=item services
+
+A list of L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
+objects corresponding to the services implemented by this device.
+
+=item getService ( ID )
+
+If the device implements a service whose serviceType or serviceId is
+equal to the C<ID> parameter, the corresponding
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
+is returned. Otherwise returns C<undef>.
+
+=back
+
+=head2 UPnP::DeviceManager::Service
+
+A C<UPnP::DeviceManager::Service> is generally obtained from a
+L<C<UPnP::DeviceManager::Device>|/UPnP::DeviceManager::Device> object
+using the C<services> or C<getServiceById> methods. This class should
+not be directly instantiated.
+
+=over 4
+
+=item dispatchTo ( MODULE )
+
+Used to specify the name of a module which implements all control
+actions for this service. When an action invocation comes in, the
+corresponding function in the module will be invoked. The parameters
+to the function are the module name I<(Ed: should get rid of this
+SOAP::Lite vestige)> and the parameters passed in the SOAP
+invocation. The function should return a list of all out parameters to
+be sent to the invoker. For example, a hypothetical UPnP thermometer
+might implement a GetTemperature action:
+
+  $service->dispatchTo('Thermometer');
+  ...
+  package Thermometer;
+
+  sub GetTemperature {
+	my $class = shift;
+	my $scale = shift;
+
+	Code to look up temperature and return in the given scale...
+
+	return $temp;
+  }
+ 
+
+A mutually exclusive alternative to directly dispatching to a module
+is to use the C<onAction> callback method.
+
+=item setValue ( [NAME => VALUE]+ )
+
+Used to set the values of state variables for the service. The
+parameters to this call should be name-value pairs for one or more
+evented state variables for the service. Results in GENA
+notifications to any subscribers to this service. 
+
+The value of the state variable is remembered by the service
+instance. Device implementors who do not need to dynamically look up
+their state variables using the C<onQuery> callback below can set the
+values of state variables before starting a device. All state queries
+will then be automatically dealt with.
+
+=item onAction ( CALLBACK )
+
+Can be used to specify a callback function for dealing with action
+invocations. The C<CALLBACK> parameter must be a CODE ref. This is a
+mutually exclusive alternative to directly dispatching actions to a
+Perl module. The callback is invoked anytime the DeviceManager
+receives a control SOAP call. Parameters to the callback are the
+service object, the action name and the parameters sent over SOAP. The
+equivalent to the hypothetical thermometer implementation described
+above is:
+
+  $service->onAction(\&actionSub);
+  ...
+  sub actionSub {
+	my $service = shift;
+	my $action = shift;
+  
+	if ($action eq 'GetTemperature') {
+	  my $scale = shift;
+	  Code to look up temperature and return in the given scale...
+	  return $temp;
+	}
+
+	return undef;
+  }
+
+=item onQuery ( CALLBACK )
+
+Can be used to specify a callback function for dealing with state
+queries.  The C<CALLBACK> parameter must be a CODE ref. This is an
+alternative to setting the values of state variables up-front and
+allows state to be looked up dynamically. The callback will be invoked
+once per state variable query. For event subscriptions, the callback
+will be invoked for each of the evented state variables. Paramters to
+the callback are the service, the name of the state variable and the
+last known value of the variable (returned from a previous call to the
+onQuery callback or set using the C<setValue> method).
+
+  $service->onAction(\&querySub);
+
+  sub onquery {
+	my ($service, $name, $val) = @_;
+
+	Code to look up value of state variable...
+
+	return $newval;
+  }
+
+=back
+
+=head1 SEE ALSO
+
+UPnP documentation and resources can be found at L<http://www.upnp.org>.
+
+The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
+
+UPnP Device management implementations in other languages include the
+UPnP SDK for Linux (L<http://upnp.sourceforge.net/>), Cyberlink for
+Java (L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
+(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
+SDK
+(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
+
+=head1 AUTHOR
+
+Vidur Apparao (vidurapparao@users.sourceforge.net)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2004-2005 by Vidur Apparao
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+
+=cut
+
 use 5.006;
 use strict;
 use warnings;
 
 use Carp;
-use IO::Socket::INET;
+use IO::Socket qw(:DEFAULT :crlf);
 use Socket;
 use IO::Select;
 use Scalar::Util;
@@ -36,12 +358,13 @@ sub new {
 
 	# Create the socket on which SSDP notifications go out
 	$self->{_ssdpNotificationSocket} = IO::Socket::INET->new(
+											Reuse => 1,
 											Proto => 'udp',
 											LocalPort => $notificationPort) ||
 		croak("Error creating SSDP notification socket: $!\n");
 	setsockopt($self->{_ssdpNotificationSocket}, 
 			   IP_LEVEL,
-			   IP_MULTICAST_TTL,
+			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
 
 	# Create the socket on which we'll listen for SSDP queries.
@@ -53,11 +376,11 @@ sub new {
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
 	setsockopt($self->{_ssdpListenSocket}, 
 			   IP_LEVEL,
-			   IP_ADD_MEMBERSHIP,
+			   UPnP::Common::getPlatformConstant('IP_ADD_MEMBERSHIP'),
 			   $ip_mreq);
 	setsockopt($self->{_ssdpListenSocket}, 
 			   IP_LEVEL,
-			   IP_MULTICAST_TTL,
+			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
 
 	$self->{_pendingNotifications} = [];
@@ -86,7 +409,7 @@ sub registerDevice {
 	}
 
 	# Set the location of the device
-	my $base = 'http://' . LOCAL_IP . ':' . $devicePort;
+	my $base = 'http://' . UPnP::Common::getLocalIPAddress() . ':' . $devicePort;
 	my $location = URI->new_abs($descriptionURI, $base);
 
 	my ($device) = $self->parseDeviceDescription($description,
@@ -720,7 +1043,8 @@ sub new {
 						  },
 						  dispatch_to => ('UPnP::DeviceManager::Serializer'),);
 		$self->on_action(sub {});
-		$self->{_daemon} = HTTP::Daemon->new(LocalPort => $args{DevicePort}) ||
+		$self->{_daemon} = HTTP::Daemon->new(Reuse => 1,
+											 LocalPort => $args{DevicePort}) ||
 			croak("Failed to create HTTP::Daemon: $!");
 		$self->{_descriptionURI} = $args{DescriptionURI};
 		$self->{_description} = $args{DeviceDescription};
@@ -1077,325 +1401,6 @@ sub notify {
 1;
 __END__
 
-=head1 NAME
-
-UPnP::DeviceManager - A UPnP Device host implementation.
-
-=head1 SYNOPSIS
-
-  use UPnP;
-
-  my $dm = UPnP::DeviceManager->new;
-  my $device = $dm->registerDevice(DescriptionFile => 'description.xml',
-								   ResourceDirectory => '.');
-  my $service = $device->getService('urn:schemas-upnp-org:service:TestService:1');
-  $service->dispatchTo('MyPackage::MyClass');
-  $service->setValue('TestVariable', 'foo');
-  $dm->handle;
-
-=head1 DESCRIPTION
-
-Implements a UPnP Device host. This module implements the various
-aspects of the UPnP architecture from the standpoint of a host of
-one or more devices:
-
-=over 4
-
-=item * Discovery
-
-Devices registered with the DeviceManager will automatically advertise
-themselves and respond to UPnP searches.
-
-=item * Description 
-
-Devices register themselves with description documents. These
-descriptions are served via HTTP to interested ControlPoints.
-
-=item * Control 
-
-Devices respond to action invocations and state queries from
-ControlPoints.
-
-=item * Eventing 
-
-Changes to device state result in events sent to interested
-subscribers.
-
-=back
-
-Since the UPnP architecture leverages several existing protocols such
-as TCP, UDP, HTTP and SOAP, this module requires several Perl modules
-that implement these protocols. These include
-L<IO::Socket::INET|IO::Socket::INET>,
-L<LWP::UserAgent|LWP::UserAgent>, L<HTTP::Daemon|HTTP::Daemon> and
-C<SOAP::Lite> (L<http://www.soaplite.com>).
-
-=head1 METHODS
-
-=head2 UPnP::DeviceManager
-
-A Device implementor will generally create a single instance of
-the C<UPnP::DeviceManager> class and register one or more devices
-with it.
-
-=over 4
-
-=item new ( [ARGS] )
-
-Creates a C<UPnP::DeviceManager> object. Accepts the following
-key-value pairs as optional arguments (default values are listed
-below):
-
-
-	NotificationPort  Port from which SSDP notifications are made	 4003
-
-A DeviceManager only becomes functional after devices are registered
-with it using the C<registerDevice> method and the sockets it creates
-are serviced. Socket management can be done in one of two ways: by
-invoking the C<handle> method; or by externally selecting the
-DeviceManage's C<sockets>, invoking the C<handleOnce> method as each
-becomes ready for reading, and invoking the C<heartbeat> method on a
-time to send out any pending device notifications.
-
-=item registerDevice ( [ARGS] )
-
-Registers a device with the DeviceManager. This call takes the
-following optional key-value pairs as arguments (default values are
-listed below):
-
-	DevicePort		Port on which the device serves requests		4004
-	DescriptionURI	The relative URI for the description document	/description.xml
-	LeaseTime		The length of the device's lease				1800
-
-The call also takes the following B<required> arguments:
-
-	Description		   A string containing the XML device description
-	DescriptionFile	   The path to a file containing the XML device description
-	ResourceDirectory  The path to a directory containing resources referred
-					   to in the device description
-
-Only one of the Description or DescriptionFile arguments should be
-specified.
-
-If successful, returns a
-L<C<UPnP::DeviceManager::Device>|/UPnP::DeviceManager::Device> object.
-The device itself does not advertise itself till its C<start> method
-is invoked.
-
-=item devices
-
-Returns a list of registered devices.
-
-=item sockets
-
-Returns a list of sockets that need to be serviced for the
-DeviceManager to correctly function. This method is generally used in
-conjunction with the C<handleOnce> method by users who want to run
-their own C<select> loop.  This list of sockets should be selected for
-reading and C<handleOnce> is invoked for each socket as it beoms ready
-for reading. This method should only be called I<after> all devices
-have been registered.
-
-=item handleOnce ( SOCKET )
-
-Handles the function of reading from a DeviceManager socket when it is
-ready (as indicated by a C<select>). This method is used by developers
-who want to run their own C<select> loop.
-
-=item heartbeat
-
-Sends any pending notifications and returns a timeout value after
-which this method should be invoked again. This method is used by
-developers who want to run their own C<select> loop.
-
-=item handle
-
-Takes over handling of all ControlPoint sockets. Runs its own
-C<select> loop, handling individual sockets as they become available
-for reading and invoking the C<heartbeat> call at the required
-interval.  Returns only when a call to C<stopHandling> is made
-(generally from a Device callback or a signal handler). This
-method is an alternative to using the C<sockets>, C<handleOnce>
-and C<heartbeat> methods.
-
-=item stopHandling
-
-Ends the C<select> loop run by C<handle>. This method is generally
-invoked from a Device callback or a signal handler.
-
-=back
-
-=head2 UPnP::DeviceManager::Device
-
-A C<UPnP::DeviceManager::Device> object is obtained by registering a
-device with a DeviceManager. This class should not be directly
-instantiated.
-
-=over 4
-
-=item start
-
-Called to start a device. Sends out the SSDP initial announcement of
-the device's presence and allows the device to respond to SSDP
-queries.
-
-=item stop
-
-Called to stop a device. Sends out an SSDP byebye announcement.
-
-=item advertise
-
-Called to manually send out an SSDP announcement for the device, its
-child devices, and its services. Can be called if SSDP announcements
-should be sent out more frequently than the device's lease
-time. Otherwise, announcements are sent automatically when the
-device's lease runs out.
-
-=item leastTime
-
-The lease length of the device.
-
-=item services
-
-A list of L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
-objects corresponding to the services implemented by this device.
-
-=item getService ( ID )
-
-If the device implements a service whose serviceType or serviceId is
-equal to the C<ID> parameter, the corresponding
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
-is returned. Otherwise returns C<undef>.
-
-=back
-
-=head2 UPnP::DeviceManager::Service
-
-A C<UPnP::DeviceManager::Service> is generally obtained from a
-L<C<UPnP::DeviceManager::Device>|/UPnP::DeviceManager::Device> object
-using the C<services> or C<getServiceById> methods. This class should
-not be directly instantiated.
-
-=over 4
-
-=item dispatchTo ( MODULE )
-
-Used to specify the name of a module which implements all control
-actions for this service. When an action invocation comes in, the
-corresponding function in the module will be invoked. The parameters
-to the function are the module name I<(Ed: should get rid of this
-SOAP::Lite vestige)> and the parameters passed in the SOAP
-invocation. The function should return a list of all out parameters to
-be sent to the invoker. For example, a hypothetical UPnP thermometer
-might implement a GetTemperature action:
-
-  $service->dispatchTo('Thermometer');
-  ...
-  package Thermometer;
-
-  sub GetTemperature {
-	my $class = shift;
-	my $scale = shift;
-
-	Code to look up temperature and return in the given scale...
-
-	return $temp;
-  }
- 
-
-A mutually exclusive alternative to directly dispatching to a module
-is to use the C<onAction> callback method.
-
-=item setValue ( [NAME => VALUE]+ )
-
-Used to set the values of state variables for the service. The
-parameters to this call should be name-value pairs for one or more
-evented state variables for the service. Results in GENA
-notifications to any subscribers to this service. 
-
-The value of the state variable is remembered by the service
-instance. Device implementors who do not need to dynamically look up
-their state variables using the C<onQuery> callback below can set the
-values of state variables before starting a device. All state queries
-will then be automatically dealt with.
-
-=item onAction ( CALLBACK )
-
-Can be used to specify a callback function for dealing with action
-invocations. The C<CALLBACK> parameter must be a CODE ref. This is a
-mutually exclusive alternative to directly dispatching actions to a
-Perl module. The callback is invoked anytime the DeviceManager
-receives a control SOAP call. Parameters to the callback are the
-service object, the action name and the parameters sent over SOAP. The
-equivalent to the hypothetical thermometer implementation described
-above is:
-
-  $service->onAction(\&actionSub);
-  ...
-  sub actionSub {
-	my $service = shift;
-	my $action = shift;
-  
-	if ($action eq 'GetTemperature') {
-	  my $scale = shift;
-	  Code to look up temperature and return in the given scale...
-	  return $temp;
-	}
-
-	return undef;
-  }
-
-=item onQuery ( CALLBACK )
-
-Can be used to specify a callback function for dealing with state
-queries.  The C<CALLBACK> parameter must be a CODE ref. This is an
-alternative to setting the values of state variables up-front and
-allows state to be looked up dynamically. The callback will be invoked
-once per state variable query. For event subscriptions, the callback
-will be invoked for each of the evented state variables. Paramters to
-the callback are the service, the name of the state variable and the
-last known value of the variable (returned from a previous call to the
-onQuery callback or set using the C<setValue> method).
-
-  $service->onAction(\&querySub);
-
-  sub onquery {
-	my ($service, $name, $val) = @_;
-
-	Code to look up value of state variable...
-
-	return $newval;
-  }
-
-=back
-
-=head1 SEE ALSO
-
-UPnP documentation and resources can be found at L<http://www.upnp.org>.
-
-The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
-
-UPnP Device management implementations in other languages include the
-UPnP SDK for Linux (L<http://upnp.sourceforge.net/>), Cyberlink for
-Java (L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
-(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
-SDK
-(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
-
-=head1 AUTHOR
-
-Vidur Apparao (vidurapparao@users.sourceforge.net)
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright (C) 2004 by Vidur Apparao
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8 or,
-at your option, any later version of Perl 5 you may have available.
-
-
-=cut
 
 # Local Variables:
 # tab-width:4

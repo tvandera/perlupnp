@@ -1,11 +1,570 @@
 package UPnP::ControlPoint;
 
+=pod
+
+=head1 NAME
+
+UPnP::ControlPoint - A UPnP ControlPoint implementation.
+
+=head1 SYNOPSIS
+
+  use UPnP::ControlPoint;
+
+  my $cp = UPnP::ControlPoint->new;
+  my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1", 
+								 \&callback);
+  $cp->handle;
+
+  sub callback {
+	my ($search, $device, $action) = @_;
+
+	if ($action eq 'deviceAdded') {
+	  print("Device: " . $device->friendlyName . " added. Device contains:\n");
+	  for my $service ($device->services) {
+		print("\tService: " . $service->serviceType . "\n");
+	  }
+	}
+	elsif ($action eq 'deviceRemoved') {
+	  print("Device: " . $device->friendlyName . " removed\n");
+	}
+  }
+
+=head1 DESCRIPTION
+
+Implements a UPnP ControlPoint. This module implements the various
+aspects of the UPnP architecture from the standpoint of a ControlPoint:
+
+=over 4
+
+=item 1. Discovery 
+
+A ControlPoint can be used to actively search for devices and services
+on a local network or listen for announcements as devices enter and
+leave the network. The protocol used for discovery is the Simple
+Service Discovery Protocol (SSDP).
+
+=item 2. Description 
+
+A ControlPoint can get information describing devices and
+services. Devices can be queried for services and vendor-specific
+information. Services can be queried for actions and state variables.
+
+=item 3. Control 
+
+A ControlPoint can invoke actions on services and poll for state
+variable values. Control-related calls are generally made using the
+Simple Object Access Protocol (SOAP).
+
+=item 4. Eventing 
+
+ControlPoints can listen for events describing state changes in
+devices and services. Subscription requests and state change events
+are generally sent using the General Event Notification Architecture
+(GENA).
+
+=back
+
+Since the UPnP architecture leverages several existing protocols such
+as TCP, UDP, HTTP and SOAP, this module requires several Perl modules
+that implement these protocols. These include
+L<IO::Socket::INET|IO::Socket::INET>,
+L<LWP::UserAgent|LWP::UserAgent>,
+L<HTTP::Daemon|HTTP::Daemon> and
+C<SOAP::Lite> (L<http://www.soaplite.com>).
+
+=head1 METHODS
+
+=head2 UPnP::ControlPoint
+
+A ControlPoint implementor will generally create a single instance of
+the C<UPnP::ControlPoint> class (though more than one can exist within
+a process assuming that they have been set up to avoid port
+conflicts).
+
+=over 4
+
+=item new ( [ARGS] )
+
+Creates a C<UPnP::ControlPoint> object. Accepts the following
+key-value pairs as optional arguments (default values are listed
+below):
+
+
+	SearchPort		  Port on which search requests are received	   8008
+	SubscriptionPort  Port on which event notification are received	   8058
+	SubscriptionURL	  URL on which event notification are received	   /eventSub
+	MaxWait			  Max wait before search responses should be sent  3
+
+While this call creates the sockets necessary for the ControlPoint to
+function, the ControlPoint is not active until its sockets are
+actually serviced, either by invoking the C<handle>
+method or by externally selecting using the ControlPoint's
+C<sockets> and invoking the
+C<handleOnce> method as each becomes ready for
+reading.
+
+=item sockets
+
+Returns a list of sockets that need to be serviced for the
+ControlPoint to correctly function. This method is generally used in
+conjunction with the C<handleOnce> method by users who want to run
+their own C<select> loop.  This list of sockets should be selected for
+reading and C<handleOnce> is invoked for each socket as it beoms ready
+for reading.
+
+=item handleOnce ( SOCKET )
+
+Handles the function of reading from a ControlPoint socket when it is
+ready (as indicated by a C<select>). This method is used by developers
+who want to run their own C<select> loop.
+
+=item handle
+
+Takes over handling of all ControlPoint sockets. Runs its own
+C<select> loop, handling individual sockets as they become available
+for reading.  Returns only when a call to
+C<stopHandling> is made (generally from a
+ControlPoint callback or a signal handler). This method is an
+alternative to using the C<sockets> and
+C<handleOnce> methods.
+
+=item stopHandling
+
+Ends the C<select> loop run by C<handle>. This method is generally
+invoked from a ControlPoint callback or a signal handler.
+
+=item searchByType ( TYPE, CALLBACK )
+
+Used to start a search for devices on the local network by device or
+service type. The C<TYPE> parameter is a string inidicating a device
+or service type. Specifically, it is the string that will be put into
+the C<ST> header of the SSDP C<M-SEARCH> request that is sent out. The
+C<CALLBACK> parameter is a code reference to a callback that is
+invoked when a device matching the search criterion is found (or a
+SSDP announcement is received that such a device is entering or
+leaving the network).  This method returns a
+L<C<UPnP::ControlPoint::Search>|/UPnP::ControlPoint::Search> object.
+
+The arguments to the C<CALLBACK> are the search object, the device
+that has been found or newly added to or removed from the network, and
+an action string which is one of 'deviceAdded' or 'deviceRemoved'. The
+callback is invoked separately for each device that matches the search
+criterion.
+
+
+  sub callback {
+	my ($search, $device, $action) = @_;
+
+	if ($action eq 'deviceAdded') {
+	  print("Device: " . $device->friendlyName . " added.\n");
+	}
+	elsif ($action eq 'deviceRemoved') {
+	  print("Device: " . $device->friendlyName . " removed\n");
+	}
+  }
+
+
+=item searchByUDN ( UDN, CALLBACK )
+
+Used to start a search for devices on the local network by Unique
+Device Name (UDN). Similar to C<searchByType>, this method sends
+out a SSDP C<M-SEARCH> request with a C<ST> header of
+C<upnp:rootdevice>. All responses to the search (and subsequent SSDP
+announcements to the network) are filtered by the C<UDN> parameter
+before resulting in C<CALLBACK> invocation. The parameters to the
+callback are the same as described in C<searchByType>.
+
+=item searchByFriendlyName ( NAME, CALLBACK )
+
+Used to start a search for devices on the local network by device
+friendy name. Similar to C<searchByType>, this method sends out a
+SSDP C<M-SEARCH> request with a C<ST> header of
+C<upnp:rootdevice>. All responses to the search (and subsequent SSDP
+announcements to the network) are filtered by the C<NAME> parameter
+before resulting in C<CALLBACK> invocation. The parameters to the
+callback are the same as described in C<searchByType>.
+
+=item stopSearch ( SEARCH )
+
+The C<SEARCH> parameter is a
+L<C<UPnP::ControlPoint::Search>|/UPnP::ControlPoint::Search> object
+returned by one of the search methods. This method stops forwarding
+SSDP events that match the search criteria of the specified search.
+
+=back
+
+=head2 UPnP::ControlPoint::Device
+
+A C<UPnP::ControlPoint::Device> is generally obtained using one of the
+L<C<UPnP::ControlPoint>|/UPnP::ControlPoint> search methods and should
+not be directly instantiated.
+
+=over 4
+
+=item deviceType 
+
+=item friendlyName 
+
+=item manufacturer 
+
+=item manufacturerURL 
+
+=item modelDescription 
+
+=item modelName 
+
+=item modelNumber 
+
+=item modelURL 
+
+=item serialNumber 
+
+=item UDN
+
+=item presentationURL 
+
+=item UPC
+
+Properties received from the device's description document. The
+returned values are all strings.
+
+=item location
+
+A URI representing the location of the device on the network.
+
+=item parent
+
+The parent device of this device. The value C<undef> if this device
+is a root device.
+
+=item children
+
+A list of child devices. The empty list if the device has no
+children.
+
+=item services
+
+A list of L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
+objects corresponding to the services implemented by this device.
+
+=item getService ( ID )
+
+If the device implements a service whose serviceType or serviceId is
+equal to the C<ID> parameter, the corresponding
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
+is returned. Otherwise returns C<undef>.
+
+=back
+
+=head2 UPnP::ControlPoint::Service
+
+A C<UPnP::ControlPoint::Service> is generally obtained from a
+L<C<UPnP::ControlPoint::Device>|/UPnP::ControlPoint::Device> object
+using the C<services> or C<getServiceById> methods. This class should
+not be directly instantiated.
+
+=over 4
+
+=item serviceType 
+
+=item serviceId 
+
+=item SCPDURL 
+
+=item controlURL
+
+=item eventSubURL
+
+Properties corresponding to the service received from the containing
+device's description document. The returned values are all strings
+except for the URL properties, which are absolute URIs.
+
+=item actions
+
+A list of L<C<UPnP::Common::Action>|/UPnP::Common::Action>
+objects corresponding to the actions implemented by this service.
+
+=item getAction ( NAME )
+
+Returns the
+L<C<UPnP::Common::Action>|/UPnP::Common::Action> object
+corresponding to the action specified by the C<NAME> parameter.
+Returns C<undef> if no such action exists.
+
+=item stateVariables
+
+A list of
+L<C<UPnP::Common::StateVariable>|/UPnP::Common::StateVariable>
+objects corresponding to the state variables implemented by this
+service.
+
+=item getStateVariable ( NAME )
+
+Returns the
+L<C<UPnP::Common::StateVariable>|/UPnP::Common::StateVariable>
+object corresponding to the state variable specified by the C<NAME>
+parameter.	Returns C<undef> if no such state variable exists.
+
+=item controlProxy
+
+Returns a
+L<C<UPnP::ControlPoint::ControlProxy>|/UPnP::ControlPoint::ControlProxy>
+object that can be used to invoke actions on the service.
+
+=item queryStateVariable ( NAME )
+
+Generates a SOAP call to the remote service to query the value of the
+state variable specified by C<NAME>. Returns the value of the
+variable. Returns C<undef> if no such state variable exists or the
+variable is not evented.
+
+=item subscribe ( CALLBACK )
+
+Registers an event subscription with the remote service. The code
+reference specied by the C<CALLBACK> parameter is invoked when GENA
+events are received from the service. This call returns a
+L<C<UPnP::ControlPoint::Subscription>|/UPnP::ControlPoint::Subscription>
+object corresponding to the subscription. The subscription can later
+be canceled using the C<unsubscribe> method.  The parameters to the
+callback are the service object and a list of name-value pairs for all
+of the state variables whose values are included in the corresponding
+GENA event:
+
+  sub eventCallback {
+	my ($service, %properties) = @_;
+
+	print("Event received for service " . $service->serviceId . "\n");
+	while (my ($key, $val) = each %properties) {
+	  print("\tProperty ${key}'s value is " . $val . "\n");
+	}
+  }
+
+
+=item unsubscribe ( SUBSCRIPTION )
+
+Unsubscribe from a service. This method takes the
+L</UPnP::ControlPoint::Subscription>
+object returned from a previous call to C<subscribe>. This method
+is equivalent to calling the C<unsubscribe> method on the subscription
+object itself and is included for symmetry and convenience.
+
+=back
+
+=head2 UPnP::Common::Action
+
+A C<UPnP::Common::Action> is generally obtained from a
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
+using its C<actions> or C<getAction> methods. It corresponds to an
+action implemented by the service. Action information is retrieved
+from the service's description document. This class should not be
+directly instantiated.
+
+=over 4
+
+=item name
+
+The name of the action returned as a string.
+
+=item retval
+
+A L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> object that
+corresponds to the action argument that is specified in the service
+description document as the return value for this action. Returns
+C<undef> if there is no specified return value.
+
+=item arguments
+
+A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
+corresponding to the arguments of the action.
+
+=item inArguments
+
+A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
+corresponding to the input arguments of the action.
+
+=item outArguments
+
+A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
+corresponding to the output arguments of the action.
+
+=back
+
+=head2 UPnP::Common::Argument
+
+A C<UPnP::Common::Argument> is generally obtained from a
+L<C<UPnP::Common::Action>|/UPnP::Common::Action> object using its
+C<arguments>, C<inArguments> or C<outArguments> methods. An instance
+of this class corresponds to an argument of a service action, as
+specified in the service's description document. This class should not
+be directly instantiated.
+
+=over 4
+
+=item name
+
+The name of the argument returned as a string.
+
+=item relatedStateVariable
+
+The name of the related state variable (which can be used to find the 
+type of the argument) returned as a string.
+
+=back
+
+=head2 UPnP::Common::StateVariable
+
+A C<UPnP::Common::StateVariable> is generally obtained from a
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
+using its C<stateVariables> or C<getStateVariable> methods. It
+corresponds to a state variable implemented by the service. State
+variable information is retrieved from the service's description
+document. This class should not be directly instantiated.
+
+=over 4
+
+=item name
+
+The name of the state variable returned as a string.
+
+=item evented
+
+Whether the state variable is evented or not.
+
+=item type
+
+The listed UPnP type of the state variable returned as a string.
+
+=item SOAPType
+
+The corresponding SOAP type of the state variable returned as a
+string.
+
+=back
+
+=head2 UPnP::ControlPoint::ControlProxy
+
+A proxy that can be used to invoke actions on a UPnP service. An
+instance of this class is generally obtained from the C<controlProxy>
+method of the corresponding
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
+object. This class should not be directly instantiated.
+
+An instance of this class is a wrapper on a C<SOAP::Lite> proxy. An
+action is invoked as if it were a method of the proxy
+object. Parameters to the action should be passed to the method. They
+will automatically be coerced to the correct type. For example, to
+invoke the C<Browse> method on a UPnP ContentDirectory service to get
+the children of the root directory, one would say:
+
+
+  my $proxy = $service->controlProxy;
+  my $result = $proxy->Browse('0', 'BrowseDirectChildren', '*', 0, 0, "");
+
+The result of a action invocation is an instance of the
+L<C<UPnP::ControlPoint::ActionResult>|/UPnP::ControlPoint::ActionResult>
+class.
+
+=head2 UPnP::ControlPoint::ActionResult
+
+An instance of this class is returned from an action invocation made
+through a
+L<C<UPnP::ControlPoint::ControlProxy>|/UPnP::ControlPoint::ControlProxy>
+object. It is a loose wrapper on the C<SOAP::SOM> object returned from
+the call made through the C<SOAP::Lite> module. All methods not
+recognized by this class will be forwarded directly to the
+C<SOAP::SOM> class. This class should not be directly instantiated.
+
+=over 4
+
+=item isSuccessful
+
+Was the invocation successful or did it result in a fault.
+
+=item getValue ( NAME )
+
+Gets the value of an out argument of the action invocation. The
+C<NAME> parameter specifies which out argument value should be 
+returned. The type of the returned value depends on the type
+specified in the service description file.
+
+=back
+
+=head2 UPnP::ControlPoint::Search
+
+A C<UPnP::ControlPoint::Search> object is returned from any successful
+calls to the L<C<UPnP::ControlPoint>|/UPnP::ControlPoint> search
+methods. It has no methods of its own, but can be used as a token to
+pass to any subsequent C<stopSearch> calls. This class should not be
+directly instantiated.
+
+=head2 UPnP::ControlPoint::Subscription
+
+A C<UPnP::ControlPoint::Search> object is returned from any successful
+calls to the
+L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
+C<subscribe> method. This class should not be directly instantiated.
+
+=over 4
+
+=item SID
+
+The subscription ID returned from the remote service, returned as a
+string.
+
+=item timeout
+
+The timeout value returned from the remote service, returned as a
+number.
+
+=item expired
+
+Has the subscription expired yet?
+
+=item renew 
+
+Renews a subscription with the remote service by sending a GENA
+subscription event.
+
+=item unsubscribe
+
+Unsubscribes from the remote service by sending a GENA unsubscription
+event.
+
+=back
+
+=head1 SEE ALSO
+
+UPnP documentation and resources can be found at L<http://www.upnp.org>.
+
+The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
+
+UPnP ControlPoint implementations in other languages include the UPnP
+SDK for Linux (L<http://upnp.sourceforge.net/>), Cyberlink for Java
+(L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
+(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
+SDK
+(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
+
+=head1 AUTHOR
+
+Vidur Apparao (vidurapparao@users.sourceforge.net)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2004-2005 by Vidur Apparao
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut
+
 use 5.006;
 use strict;
 use warnings;
 
 use Carp;
-use IO::Socket::INET;
+use IO::Socket qw(:DEFAULT :crlf);
 use Socket;
 use IO::Select;
 use HTTP::Daemon;
@@ -36,17 +595,19 @@ sub new {
 
 	# Create the socket on which search requests go out
 	$self->{_searchSocket} = IO::Socket::INET->new(Proto => 'udp',
+												   Reuse => 1,
 												   LocalPort => $searchPort) ||
 	croak("Error creating search socket: $!\n");
 	setsockopt($self->{_searchSocket}, 
 			   IP_LEVEL,
-			   IP_MULTICAST_TTL,
+			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
 	$self->{_maxWait} = $maxWait;
 
 	# Create the socket on which we'll listen for events to which we are
 	# subscribed.
 	$self->{_subscriptionSocket} = HTTP::Daemon->new(
+											 Reuse => 1,
 											 LocalPort => $subscriptionPort) ||
 	croak("Error creating subscription socket: $!\n");
 	$self->{_subscriptionURL} = $args{SubscriptionURL} || DEFAULT_SUBSCRIPTION_URL;
@@ -61,11 +622,11 @@ sub new {
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
 	setsockopt($self->{_ssdpMulticastSocket}, 
 			   IP_LEVEL,
-			   IP_ADD_MEMBERSHIP,
+			   UPnP::Common::getPlatformConstant('IP_ADD_MEMBERSHIP'),
 			   $ip_mreq);
 	setsockopt($self->{_ssdpMulticastSocket}, 
 			   IP_LEVEL,
-			   IP_MULTICAST_TTL,
+			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
 
 	return $self;
@@ -171,7 +732,7 @@ sub stopHandling {
 sub subscriptionURL {
 	my $self = shift;
 	return URI->new_abs($self->{_subscriptionURL},
-						'http://' . LOCAL_IP . ':' .
+						'http://' . UPnP::Common::getLocalIPAddress() . ':' .
 						$self->{_subscriptionPort});
 }
 
@@ -946,562 +1507,6 @@ sub propChange {
 1;
 __END__
 
-=head1 NAME
-
-UPnP::ControlPoint - A UPnP ControlPoint implementation.
-
-=head1 SYNOPSIS
-
-  use UPnP::ControlPoint;
-
-  my $cp = UPnP::ControlPoint->new;
-  my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1", 
-								 \&callback);
-  $cp->handle;
-
-  sub callback {
-	my ($search, $device, $action) = @_;
-
-	if ($action eq 'deviceAdded') {
-	  print("Device: " . $device->friendlyName . " added. Device contains:\n");
-	  for my $service ($device->services) {
-		print("\tService: " . $service->serviceType . "\n");
-	  }
-	}
-	elsif ($action eq 'deviceRemoved') {
-	  print("Device: " . $device->friendlyName . " removed\n");
-	}
-  }
-
-=head1 DESCRIPTION
-
-Implements a UPnP ControlPoint. This module implements the various
-aspects of the UPnP architecture from the standpoint of a ControlPoint:
-
-=over 4
-
-=item 1. Discovery 
-
-A ControlPoint can be used to actively search for devices and services
-on a local network or listen for announcements as devices enter and
-leave the network. The protocol used for discovery is the Simple
-Service Discovery Protocol (SSDP).
-
-=item 2. Description 
-
-A ControlPoint can get information describing devices and
-services. Devices can be queried for services and vendor-specific
-information. Services can be queried for actions and state variables.
-
-=item 3. Control 
-
-A ControlPoint can invoke actions on services and poll for state
-variable values. Control-related calls are generally made using the
-Simple Object Access Protocol (SOAP).
-
-=item 4. Eventing 
-
-ControlPoints can listen for events describing state changes in
-devices and services. Subscription requests and state change events
-are generally sent using the General Event Notification Architecture
-(GENA).
-
-=back
-
-Since the UPnP architecture leverages several existing protocols such
-as TCP, UDP, HTTP and SOAP, this module requires several Perl modules
-that implement these protocols. These include
-L<IO::Socket::INET|IO::Socket::INET>,
-L<LWP::UserAgent|LWP::UserAgent>,
-L<HTTP::Daemon|HTTP::Daemon> and
-C<SOAP::Lite> (L<http://www.soaplite.com>).
-
-=head1 METHODS
-
-=head2 UPnP::ControlPoint
-
-A ControlPoint implementor will generally create a single instance of
-the C<UPnP::ControlPoint> class (though more than one can exist within
-a process assuming that they have been set up to avoid port
-conflicts).
-
-=over 4
-
-=item new ( [ARGS] )
-
-Creates a C<UPnP::ControlPoint> object. Accepts the following
-key-value pairs as optional arguments (default values are listed
-below):
-
-
-	SearchPort		  Port on which search requests are received	   8008
-	SubscriptionPort  Port on which event notification are received	   8058
-	SubscriptionURL	  URL on which event notification are received	   /eventSub
-	MaxWait			  Max wait before search responses should be sent  3
-
-While this call creates the sockets necessary for the ControlPoint to
-function, the ControlPoint is not active until its sockets are
-actually serviced, either by invoking the C<handle>
-method or by externally selecting using the ControlPoint's
-C<sockets> and invoking the
-C<handleOnce> method as each becomes ready for
-reading.
-
-=item sockets
-
-Returns a list of sockets that need to be serviced for the
-ControlPoint to correctly function. This method is generally used in
-conjunction with the C<handleOnce> method by users who want to run
-their own C<select> loop.  This list of sockets should be selected for
-reading and C<handleOnce> is invoked for each socket as it beoms ready
-for reading.
-
-=item handleOnce ( SOCKET )
-
-Handles the function of reading from a ControlPoint socket when it is
-ready (as indicated by a C<select>). This method is used by developers
-who want to run their own C<select> loop.
-
-=item handle
-
-Takes over handling of all ControlPoint sockets. Runs its own
-C<select> loop, handling individual sockets as they become available
-for reading.  Returns only when a call to
-C<stopHandling> is made (generally from a
-ControlPoint callback or a signal handler). This method is an
-alternative to using the C<sockets> and
-C<handleOnce> methods.
-
-=item stopHandling
-
-Ends the C<select> loop run by C<handle>. This method is generally
-invoked from a ControlPoint callback or a signal handler.
-
-=item searchByType ( TYPE, CALLBACK )
-
-Used to start a search for devices on the local network by device or
-service type. The C<TYPE> parameter is a string inidicating a device
-or service type. Specifically, it is the string that will be put into
-the C<ST> header of the SSDP C<M-SEARCH> request that is sent out. The
-C<CALLBACK> parameter is a code reference to a callback that is
-invoked when a device matching the search criterion is found (or a
-SSDP announcement is received that such a device is entering or
-leaving the network).  This method returns a
-L<C<UPnP::ControlPoint::Search>|/UPnP::ControlPoint::Search> object.
-
-The arguments to the C<CALLBACK> are the search object, the device
-that has been found or newly added to or removed from the network, and
-an action string which is one of 'deviceAdded' or 'deviceRemoved'. The
-callback is invoked separately for each device that matches the search
-criterion.
-
-
-  sub callback {
-	my ($search, $device, $action) = @_;
-
-	if ($action eq 'deviceAdded') {
-	  print("Device: " . $device->friendlyName . " added.\n");
-	}
-	elsif ($action eq 'deviceRemoved') {
-	  print("Device: " . $device->friendlyName . " removed\n");
-	}
-  }
-
-
-=item searchByUDN ( UDN, CALLBACK )
-
-Used to start a search for devices on the local network by Unique
-Device Name (UDN). Similar to C<searchByType>, this method sends
-out a SSDP C<M-SEARCH> request with a C<ST> header of
-C<upnp:rootdevice>. All responses to the search (and subsequent SSDP
-announcements to the network) are filtered by the C<UDN> parameter
-before resulting in C<CALLBACK> invocation. The parameters to the
-callback are the same as described in C<searchByType>.
-
-=item searchByFriendlyName ( NAME, CALLBACK )
-
-Used to start a search for devices on the local network by device
-friendy name. Similar to C<searchByType>, this method sends out a
-SSDP C<M-SEARCH> request with a C<ST> header of
-C<upnp:rootdevice>. All responses to the search (and subsequent SSDP
-announcements to the network) are filtered by the C<NAME> parameter
-before resulting in C<CALLBACK> invocation. The parameters to the
-callback are the same as described in C<searchByType>.
-
-=item stopSearch ( SEARCH )
-
-The C<SEARCH> parameter is a
-L<C<UPnP::ControlPoint::Search>|/UPnP::ControlPoint::Search> object
-returned by one of the search methods. This method stops forwarding
-SSDP events that match the search criteria of the specified search.
-
-=back
-
-=head2 UPnP::ControlPoint::Device
-
-A C<UPnP::ControlPoint::Device> is generally obtained using one of the
-L<C<UPnP::ControlPoint>|/UPnP::ControlPoint> search methods and should
-not be directly instantiated.
-
-=over 4
-
-=item deviceType 
-
-=item friendlyName 
-
-=item manufacturer 
-
-=item manufacturerURL 
-
-=item modelDescription 
-
-=item modelName 
-
-=item modelNumber 
-
-=item modelURL 
-
-=item serialNumber 
-
-=item UDN
-
-=item presentationURL 
-
-=item UPC
-
-Properties received from the device's description document. The
-returned values are all strings.
-
-=item location
-
-A URI representing the location of the device on the network.
-
-=item parent
-
-The parent device of this device. The value C<undef> if this device
-is a root device.
-
-=item children
-
-A list of child devices. The empty list if the device has no
-children.
-
-=item services
-
-A list of L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
-objects corresponding to the services implemented by this device.
-
-=item getService ( ID )
-
-If the device implements a service whose serviceType or serviceId is
-equal to the C<ID> parameter, the corresponding
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
-is returned. Otherwise returns C<undef>.
-
-=back
-
-=head2 UPnP::ControlPoint::Service
-
-A C<UPnP::ControlPoint::Service> is generally obtained from a
-L<C<UPnP::ControlPoint::Device>|/UPnP::ControlPoint::Device> object
-using the C<services> or C<getServiceById> methods. This class should
-not be directly instantiated.
-
-=over 4
-
-=item serviceType 
-
-=item serviceId 
-
-=item SCPDURL 
-
-=item controlURL
-
-=item eventSubURL
-
-Properties corresponding to the service received from the containing
-device's description document. The returned values are all strings
-except for the URL properties, which are absolute URIs.
-
-=item actions
-
-A list of L<C<UPnP::Common::Action>|/UPnP::Common::Action>
-objects corresponding to the actions implemented by this service.
-
-=item getAction ( NAME )
-
-Returns the
-L<C<UPnP::Common::Action>|/UPnP::Common::Action> object
-corresponding to the action specified by the C<NAME> parameter.
-Returns C<undef> if no such action exists.
-
-=item stateVariables
-
-A list of
-L<C<UPnP::Common::StateVariable>|/UPnP::Common::StateVariable>
-objects corresponding to the state variables implemented by this
-service.
-
-=item getStateVariable ( NAME )
-
-Returns the
-L<C<UPnP::Common::StateVariable>|/UPnP::Common::StateVariable>
-object corresponding to the state variable specified by the C<NAME>
-parameter.	Returns C<undef> if no such state variable exists.
-
-=item controlProxy
-
-Returns a
-L<C<UPnP::ControlPoint::ControlProxy>|/UPnP::ControlPoint::ControlProxy>
-object that can be used to invoke actions on the service.
-
-=item queryStateVariable ( NAME )
-
-Generates a SOAP call to the remote service to query the value of the
-state variable specified by C<NAME>. Returns the value of the
-variable. Returns C<undef> if no such state variable exists or the
-variable is not evented.
-
-=item subscribe ( CALLBACK )
-
-Registers an event subscription with the remote service. The code
-reference specied by the C<CALLBACK> parameter is invoked when GENA
-events are received from the service. This call returns a
-L<C<UPnP::ControlPoint::Subscription>|/UPnP::ControlPoint::Subscription>
-object corresponding to the subscription. The subscription can later
-be canceled using the C<unsubscribe> method.  The parameters to the
-callback are the service object and a list of name-value pairs for all
-of the state variables whose values are included in the corresponding
-GENA event:
-
-  sub eventCallback {
-	my ($service, %properties) = @_;
-
-	print("Event received for service " . $service->serviceId . "\n");
-	while (my ($key, $val) = each %properties) {
-	  print("\tProperty ${key}'s value is " . $val . "\n");
-	}
-  }
-
-
-=item unsubscribe ( SUBSCRIPTION )
-
-Unsubscribe from a service. This method takes the
-L</UPnP::ControlPoint::Subscription>
-object returned from a previous call to C<subscribe>. This method
-is equivalent to calling the C<unsubscribe> method on the subscription
-object itself and is included for symmetry and convenience.
-
-=back
-
-=head2 UPnP::Common::Action
-
-A C<UPnP::Common::Action> is generally obtained from a
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
-using its C<actions> or C<getAction> methods. It corresponds to an
-action implemented by the service. Action information is retrieved
-from the service's description document. This class should not be
-directly instantiated.
-
-=over 4
-
-=item name
-
-The name of the action returned as a string.
-
-=item retval
-
-A L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> object that
-corresponds to the action argument that is specified in the service
-description document as the return value for this action. Returns
-C<undef> if there is no specified return value.
-
-=item arguments
-
-A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
-corresponding to the arguments of the action.
-
-=item inArguments
-
-A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
-corresponding to the input arguments of the action.
-
-=item outArguments
-
-A list of L<C<UPnP::Common::Argument>|/UPnP::Common::Argument> objects
-corresponding to the output arguments of the action.
-
-=back
-
-=head2 UPnP::Common::Argument
-
-A C<UPnP::Common::Argument> is generally obtained from a
-L<C<UPnP::Common::Action>|/UPnP::Common::Action> object using its
-C<arguments>, C<inArguments> or C<outArguments> methods. An instance
-of this class corresponds to an argument of a service action, as
-specified in the service's description document. This class should not
-be directly instantiated.
-
-=over 4
-
-=item name
-
-The name of the argument returned as a string.
-
-=item relatedStateVariable
-
-The name of the related state variable (which can be used to find the 
-type of the argument) returned as a string.
-
-=back
-
-=head2 UPnP::Common::StateVariable
-
-A C<UPnP::Common::StateVariable> is generally obtained from a
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service> object
-using its C<stateVariables> or C<getStateVariable> methods. It
-corresponds to a state variable implemented by the service. State
-variable information is retrieved from the service's description
-document. This class should not be directly instantiated.
-
-=over 4
-
-=item name
-
-The name of the state variable returned as a string.
-
-=item evented
-
-Whether the state variable is evented or not.
-
-=item type
-
-The listed UPnP type of the state variable returned as a string.
-
-=item SOAPType
-
-The corresponding SOAP type of the state variable returned as a
-string.
-
-=back
-
-=head2 UPnP::ControlPoint::ControlProxy
-
-A proxy that can be used to invoke actions on a UPnP service. An
-instance of this class is generally obtained from the C<controlProxy>
-method of the corresponding
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
-object. This class should not be directly instantiated.
-
-An instance of this class is a wrapper on a C<SOAP::Lite> proxy. An
-action is invoked as if it were a method of the proxy
-object. Parameters to the action should be passed to the method. They
-will automatically be coerced to the correct type. For example, to
-invoke the C<Browse> method on a UPnP ContentDirectory service to get
-the children of the root directory, one would say:
-
-
-  my $proxy = $service->controlProxy;
-  my $result = $proxy->Browse('0', 'BrowseDirectChildren', '*', 0, 0, "");
-
-The result of a action invocation is an instance of the
-L<C<UPnP::ControlPoint::ActionResult>|/UPnP::ControlPoint::ActionResult>
-class.
-
-=head2 UPnP::ControlPoint::ActionResult
-
-An instance of this class is returned from an action invocation made
-through a
-L<C<UPnP::ControlPoint::ControlProxy>|/UPnP::ControlPoint::ControlProxy>
-object. It is a loose wrapper on the C<SOAP::SOM> object returned from
-the call made through the C<SOAP::Lite> module. All methods not
-recognized by this class will be forwarded directly to the
-C<SOAP::SOM> class. This class should not be directly instantiated.
-
-=over 4
-
-=item isSuccessful
-
-Was the invocation successful or did it result in a fault.
-
-=item getValue ( NAME )
-
-Gets the value of an out argument of the action invocation. The
-C<NAME> parameter specifies which out argument value should be 
-returned. The type of the returned value depends on the type
-specified in the service description file.
-
-=back
-
-=head2 UPnP::ControlPoint::Search
-
-A C<UPnP::ControlPoint::Search> object is returned from any successful
-calls to the L<C<UPnP::ControlPoint>|/UPnP::ControlPoint> search
-methods. It has no methods of its own, but can be used as a token to
-pass to any subsequent C<stopSearch> calls. This class should not be
-directly instantiated.
-
-=head2 UPnP::ControlPoint::Subscription
-
-A C<UPnP::ControlPoint::Search> object is returned from any successful
-calls to the
-L<C<UPnP::ControlPoint::Service>|/UPnP::ControlPoint::Service>
-C<subscribe> method. This class should not be directly instantiated.
-
-=over 4
-
-=item SID
-
-The subscription ID returned from the remote service, returned as a
-string.
-
-=item timeout
-
-The timeout value returned from the remote service, returned as a
-number.
-
-=item expired
-
-Has the subscription expired yet?
-
-=item renew 
-
-Renews a subscription with the remote service by sending a GENA
-subscription event.
-
-=item unsubscribe
-
-Unsubscribes from the remote service by sending a GENA unsubscription
-event.
-
-=back
-
-=head1 SEE ALSO
-
-UPnP documentation and resources can be found at L<http://www.upnp.org>.
-
-The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
-
-UPnP ControlPoint implementations in other languages include the UPnP
-SDK for Linux (L<http://upnp.sourceforge.net/>), Cyberlink for Java
-(L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
-(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
-SDK
-(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
-
-=head1 AUTHOR
-
-Vidur Apparao (vidurapparao@users.sourceforge.net)
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright (C) 2004 by Vidur Apparao
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8 or,
-at your option, any later version of Perl 5 you may have available.
-
-=cut
 
 # Local Variables:
 # tab-width:4

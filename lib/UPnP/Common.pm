@@ -1,108 +1,136 @@
 package UPnP::Common;
 
+=pod
+
+=head1 NAME
+
+UPnP::Common - Common constants, parameters and functions, including
+several internal modules, for the Perl UPnP implementation. Only 
+documented functionality should be used outside the Perl UPnP set
+of packages.
+
+=head1 DESCRIPTION
+
+This class gives you access constants that can be used to control
+aspects of the behavior of Perl UPnP objects.
+
+=over
+
+=item $LOCAL_IP
+
+Perl UPnP needs to have access to the IP address of the network
+interface used for UPnP protocol exchanges. Perl UPnP will try to
+automatically detect the IP address of the interface if this variable
+is not set. However, this variable can be explictly set to the IP
+address to use:
+
+  $UPnP::LOCAL_IP = '192.168.0.23';
+
+=item $IP_DETECT_ADDRESS
+
+If the $LOCAL_IP variable has not been explicitly set, the UPnP
+implementation attempts to automatically detect the IP address of the
+network interface used for UPnP protocol exchanges. It does this by
+connecting to a well-known external address and querying the socket
+used for the connection. By default, this address is 'www.google.com'
+over port 80. An alternate IP address detection address can be 
+specified in the following way:
+
+	$UPnP::IP_DETECT_ADDRESS = 'www.yahoo.com:80';
+
+=back
+
+=head1 SEE ALSO
+
+UPnP documentation and resources can be found at L<http://www.upnp.org>.
+
+The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
+
+UPnP implementations in other languages include the UPnP SDK for Linux
+(L<http://upnp.sourceforge.net/>), Cyberlink for Java
+(L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
+(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
+SDK
+(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
+
+=head1 AUTHOR
+
+Vidur Apparao (vidurapparao@users.sourceforge.net)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2004-2005 by Vidur Apparao
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut
+
 use 5.006;
 use strict;
 use warnings;
 
 use HTTP::Headers;
-use IO::Socket;
+use IO::Socket qw(:DEFAULT :crlf);
+use SOAP::Lite;
 
 use		vars qw(@EXPORT $VERSION @ISA $AUTOLOAD);
 
 require Exporter;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.03';
+our $VERSION = '0.4';
 
-my %XP_CONSTANTS = (
-	SSDP_IP => "239.255.255.250",
-	SSDP_PORT => 1900,
-	CRLF => "\015\012",
-	IP_LEVEL => getprotobyname('ip') || 0,
+# Constants exported for all UPnP modules
+use constant SSDP_IP => "239.255.255.250";
+use constant SSDP_PORT => 1900;
+use constant IP_LEVEL => getprotobyname('ip') || 0;
+
+@EXPORT = qw(SSDP_IP SSDP_PORT IP_LEVEL);
+
+# Platform dependent constants that can't automatically be detected.
+# We hard-code values for the common platforms, defaulting to the
+# Linux values.
+my %PLATFORM_CONSTANT_NAMES = (
+	'IP_MULTICAST_TTL' => 0,
+	'IP_ADD_MEMBERSHIP' => 1
 );
-
-my @MD_CONSTANTS = qw(IP_MULTICAST_TTL IP_ADD_MEMBERSHIP);
-my %MD_CONSTANT_VALUES = (
+my %PLATFORM_CONSTANT_VALUES = (
 	'MSWin32' => [3,5],
 	'cygwin' => [3,5],
 	'darwin' => [10,12],
-	'linux' => [33,35],
 	'default' => [33,35],
 );
 
-@EXPORT = qw();
+sub getPlatformConstant {
+	my $name = shift;
 
-use constant PROBE_IP => "239.255.255.251";
-use constant PROBE_PORT => 8950;
+	my $index = $PLATFORM_CONSTANT_NAMES{$name};
+	return if !defined($index);
 
-my $ref = $MD_CONSTANT_VALUES{$^O};
-if (!defined($ref)) {
-	$ref = $MD_CONSTANT_VALUES{default};
-}
-my $consts;
-for my $name (keys %XP_CONSTANTS) {
-	$consts .= "use constant $name => \'" . $XP_CONSTANTS{$name} . "\';\n";
-}
-for my $index (0..$#MD_CONSTANTS) {
-	my $name = $MD_CONSTANTS[$index];
-	$consts .= "use constant $name => \'" . $ref->[$index] . "\';\n";
+	my $ref = $PLATFORM_CONSTANT_VALUES{$^O} || $PLATFORM_CONSTANT_VALUES{'default'};
+	return $ref->[$index];
 }
 
-my $probeSocket = IO::Socket::INET->new(Proto => 'udp',
-										Reuse => 1);
-my $listenSocket = IO::Socket::INET->new(Proto => 'udp',
-										 Reuse => 1,
-										 LocalPort => PROBE_PORT);
-my $ip_mreq = inet_aton(PROBE_IP) . INADDR_ANY;
-setsockopt($listenSocket, 
-		   getprotobyname('ip'),
-		   $ref->[1],
-		   $ip_mreq);
+# We need to be able to the IP address of the network interface that
+# will be used for UPnP. A cheap and cross-platform way of doing this
+# is to connect to an external machine and getting the information
+# from the connect socket. 
+# The following two constants can be changed by the caller.
+our $IP_DETECT_ADDRESS = 'www.google.com:80';
+our $LOCAL_IP = undef;
 
-my $destaddr = sockaddr_in(PROBE_PORT, inet_aton(PROBE_IP));
-send($probeSocket, "Test", 0, $destaddr);
+sub getLocalIPAddress {
+	unless (defined($LOCAL_IP)) {
+		my $socket = IO::Socket::INET->new('PeerAddr'  => $IP_DETECT_ADDRESS);
+		if ($socket) {
+			my ($port, $address) = sockaddr_in( (getsockname($socket))[0] );
+			$LOCAL_IP = inet_ntoa($address);
+		}
+	}
 
-my $buf = '';
-my $peer = recv($listenSocket, $buf, 2048, 0);
-my ($port, $addr) = sockaddr_in($peer);
-
-$probeSocket->close;
-$listenSocket->close;
-
-$consts .= "use constant LOCAL_IP => \'" . inet_ntoa($addr) . "\';\n";
-#warn $consts; # for development
-eval $consts;
-push @EXPORT, (keys %XP_CONSTANTS, @MD_CONSTANTS, 'LOCAL_IP');
-
-my %typeMap = (
-	'ui1' => 'int',
-	'ui2' => 'int',
-	'ui4' => 'int',
-	'i1' => 'int',
-	'i2' => 'int',
-	'i4' => 'int',
-	'int' => 'int',
-	'r4' => 'float',
-	'r8' => 'float',
-	'number' => 'float',
-	'fixed' => 'float',
-	'float' => 'float',
-	'char' => 'string',
-	'string' => 'string',
-	'date' => 'timeInstant',
-	'dateTime.tz' => 'timeInstant',
-	'time' => 'timeInstant',
-	'time.tz' => 'timeInstant',
-	'boolean' => 'boolean',
-	'bin.base64' => 'base64Binary',
-	'bin.hex' => 'hexBinary',
-	'uri' => 'uriReference',
-	'uuid' => 'string',
-);
-
-BEGIN {
-	use SOAP::Lite;
-	$SOAP::Constants::DO_NOT_USE_XML_PARSER = 1;
+	return $LOCAL_IP;
 }
 
 sub parseHTTPHeaders {
@@ -130,6 +158,32 @@ sub parseHTTPHeaders {
 
 	return $headers;
 }
+
+my %typeMap = (
+	'ui1' => 'int',
+	'ui2' => 'int',
+	'ui4' => 'int',
+	'i1' => 'int',
+	'i2' => 'int',
+	'i4' => 'int',
+	'int' => 'int',
+	'r4' => 'float',
+	'r8' => 'float',
+	'number' => 'float',
+	'fixed' => 'float',
+	'float' => 'float',
+	'char' => 'string',
+	'string' => 'string',
+	'date' => 'timeInstant',
+	'dateTime.tz' => 'timeInstant',
+	'time' => 'timeInstant',
+	'time.tz' => 'timeInstant',
+	'boolean' => 'boolean',
+	'bin.base64' => 'base64Binary',
+	'bin.hex' => 'hexBinary',
+	'uri' => 'uriReference',
+	'uuid' => 'string',
+);
 
 sub UPnPToSOAPType {
 	my $upnpType = shift;
@@ -757,43 +811,6 @@ sub end {
 1;
 __END__
 
-=head1 NAME
-
-UPnP::Common - Internal modules and methods for the UPnP
-implementation. The C<UPnP::ControlPoint> and C<UPnP::DeviceManager>
-modules should be used.
-
-=head1 DESCRIPTION
-
-Part of the Perl UPnP implementation suite.
-
-=head1 SEE ALSO
-
-UPnP documentation and resources can be found at L<http://www.upnp.org>.
-
-The C<SOAP::Lite> module can be found at L<http://www.soaplite.com>.
-
-UPnP implementations in other languages include the UPnP SDK for Linux
-(L<http://upnp.sourceforge.net/>), Cyberlink for Java
-(L<http://www.cybergarage.org/net/upnp/java/index.html>) and C++
-(L<http://sourceforge.net/projects/clinkcc/>), and the Microsoft UPnP
-SDK
-(L<http://msdn.microsoft.com/library/default.asp?url=/library/en-us/upnp/upnp/universal_plug_and_play_start_page.asp>).
-
-=head1 AUTHOR
-
-Vidur Apparao (vidurapparao@users.sourceforge.net)
-
-=head1 COPYRIGHT AND LICENSE
-
-Copyright (C) 2004 by Vidur Apparao
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8 or,
-at your option, any later version of Perl 5 you may have available.
-
-
-=cut
 
 # Local Variables:
 # tab-width:4
