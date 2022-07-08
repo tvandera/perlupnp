@@ -16,7 +16,7 @@ open(ME,$0) or die $!;
 my $TestCount = grep(/\#\#\#/,<ME>);
 close(ME);
 
-BEGIN { use_ok('UPnP::DeviceManager') };
+use UPnP::DeviceManager;
 use UPnP::ControlPoint;
 use UPnP::Common;
 use Socket;
@@ -49,6 +49,9 @@ if ($pid) {
 	close $parent;
 
 	plan tests => $TestCount;
+
+    ### test module use
+    use_ok('UPnP::DeviceManager');
 
 	diag("Testing Device creation");
 

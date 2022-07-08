@@ -11,7 +11,7 @@ open(ME,$0) or die $!;
 my $TestCount = grep(/\#\#\#/,<ME>);
 close(ME);
 
-BEGIN { use_ok('UPnP::ControlPoint') };
+use UPnP::ControlPoint;
 use UPnP::DeviceManager;
 use UPnP::Common;
 use Socket;
@@ -42,6 +42,9 @@ if ($pid) {
 	close $parent;
 
 	plan tests => $TestCount;
+
+	### test module use
+	use_ok('UPnP::ControlPoint');
 
 	diag("Testing ControlPoint creation");
 
