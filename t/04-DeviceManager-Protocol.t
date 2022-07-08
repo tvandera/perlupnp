@@ -174,7 +174,7 @@ sub testSSDPEvent {
 
     # Only listen to events that originated from this process
     if (!$ssdpTestDone && ($port == NOTIFICATION_PORT) &&
-	(inet_ntoa($iaddr) eq LOCAL_IP)) {
+	(inet_ntoa($iaddr) eq UPnP::Common::getLocalIP())) {
 
 	# Section 1.1.2 of the UPnP Architecture document
 	# 'Discovery: Advertisement: Device available -- NOTIFY with ssdp:alive'
@@ -207,7 +207,7 @@ sub testSSDPEvent {
 
 	### Check the Location header
 	is( $headers->header('Location'), 
-	    'http://' . LOCAL_IP . ':' . DEVICE_PORT . '/description.xml',
+	    'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT . '/description.xml',
 	    'Location header' );
 
 	### Check the NT header
@@ -275,7 +275,7 @@ sub testSearchResponse {
 	
 	### Check the Location header
 	is( $headers->header('Location'), 
-	    'http://' . LOCAL_IP . ':' . DEVICE_PORT . '/description.xml',
+	    'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT . '/description.xml',
 	    'Location header' );
 	
 	### Check the Server header
@@ -289,7 +289,7 @@ sub testSearchResponse {
 }
 
 sub testControl {
-    my $base = 'http://' . LOCAL_IP . ':' . DEVICE_PORT;
+    my $base = 'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT;
 
     # Section 2.9 of the UPnP Architecture document
     # 'Description: Retrieving a description'
@@ -426,8 +426,8 @@ sub testControl {
     $req = HTTP::Request->new("SUBSCRIBE",
 			     $base . '/MediaRenderer/RendererControl/Event',
 			     HTTP::Headers->new);
-    $req->header('Host', LOCAL_IP . ':' . DEVICE_PORT);
-    $req->header('Callback', '<http://' . LOCAL_IP . ':' 
+    $req->header('Host', UPnP::Common::getLocalIP() . ':' . DEVICE_PORT);
+    $req->header('Callback', '<http://' . UPnP::Common::getLocalIP() . ':' 
 		 . SUBSCRIPTION_PORT . '>');
     $req->header('NT', 'upnp:event');
     $req->header('Timeout', 'Second-1800');
@@ -465,7 +465,7 @@ sub testNotification {
 	is( $req->method, 'NOTIFY', 'HTTP method' );
 	
 	### Check the HOST header
-	is ($req->header('HOST'), LOCAL_IP . ':' . SUBSCRIPTION_PORT, 
+	is ($req->header('HOST'), UPnP::Common::getLocalIP() . ':' . SUBSCRIPTION_PORT, 
 	    'HOST header');
 	
 	### Check content-length header
@@ -517,12 +517,12 @@ sub testUnsubscribe {
     diag("Testing Section 4.1.3");
 
     my $ua = LWP::UserAgent->new;
-    my $base = 'http://' . LOCAL_IP . ':' . DEVICE_PORT;
+    my $base = 'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT;
 
     $req = HTTP::Request->new("UNSUBSCRIBE",
 			     $base . '/MediaRenderer/RendererControl/Event',
 			     HTTP::Headers->new);
-    $req->header('Host', LOCAL_IP . ':' . DEVICE_PORT);
+    $req->header('Host', UPnP::Common::getLocalIP() . ':' . DEVICE_PORT);
     $req->header('SID', $sid);
 
     $resp = $ua->request($req);

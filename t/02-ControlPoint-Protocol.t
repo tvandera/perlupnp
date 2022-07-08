@@ -133,7 +133,7 @@ sub testSSDPEvent {
     my ($port, $iaddr) = sockaddr_in($peer);
     # Only listen to events that originated from this process
     if (!$ssdpTestDone && $port == SEARCH_PORT && 
-	inet_ntoa($iaddr) eq LOCAL_IP) {
+	inet_ntoa($iaddr) eq UPnP::Common::getLocalIP()) {
 
 	# Section 1.22 of the UPnP Architecture document
 	# 'Discovery: Search: Request with M-SEARCH'
@@ -172,7 +172,7 @@ sub testSSDPEvent {
 
 	my $r = HTTP::Response->new(HTTP::Status::RC_OK);
 	$r->protocol('HTTP/1.1');
-	$r->header('Location', 'http://' . LOCAL_IP . ':' . DEVICE_PORT . '/description.xml');
+	$r->header('Location', 'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT . '/description.xml');
 	$r->header('Server', "TestServer");
 	$r->header('USN', 'uuid:Perl-UPnP-Test-Device1::urn:schemas-upnp-org:device:TestDevice:1');
 	$r->header('Cache-control', 'max-age=1800');
@@ -212,7 +212,7 @@ sub handleRequest {
 	### HTTP Method
 	is( $r->method, 'GET', 'HTTP Method' );
 
-	my $base = 'http://' . LOCAL_IP . ':' . DEVICE_PORT;
+	my $base = 'http://' . UPnP::Common::getLocalIP() . ':' . DEVICE_PORT;
 
 	### Required HOST header
 	ok( defined($r->header('Host')), 'Host header' );

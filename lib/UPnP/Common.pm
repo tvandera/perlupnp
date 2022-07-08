@@ -21,9 +21,10 @@ my %XP_CONSTANTS = (
     IP_LEVEL => getprotobyname('ip') || 0,
 );
 
+#ALW - Changed from 'MSWin32' => [3,5],
 my @MD_CONSTANTS = qw(IP_MULTICAST_TTL IP_ADD_MEMBERSHIP);
 my %MD_CONSTANT_VALUES = (
-	'MSWin32' => [3,5],
+	'MSWin32' => [10,12],
 	'cygwin' => [3,5],
 	'darwin' => [10,12],
 	'linux' => [33,35],
@@ -48,31 +49,11 @@ for my $index (0..$#MD_CONSTANTS) {
 	$consts .= "use constant $name => \'" . $ref->[$index] . "\';\n";
 }
 
-my $probeSocket = IO::Socket::INET->new(Proto => 'udp',
-										Reuse => 1);
-my $listenSocket = IO::Socket::INET->new(Proto => 'udp',
-										 Reuse => 1,
-										 LocalPort => PROBE_PORT);
-my $ip_mreq = inet_aton(PROBE_IP) . INADDR_ANY;
-setsockopt($listenSocket, 
-		   getprotobyname('ip'),
-		   $ref->[1],
-		   $ip_mreq);
-
-my $destaddr = sockaddr_in(PROBE_PORT, inet_aton(PROBE_IP));
-send($probeSocket, "Test", 0, $destaddr);
-
-my $buf = '';
-my $peer = recv($listenSocket, $buf, 2048, 0);
-my ($port, $addr) = sockaddr_in($peer);
-
-$probeSocket->close;
-$listenSocket->close;
-
-$consts .= "use constant LOCAL_IP => \'" . inet_ntoa($addr) . "\';\n";
 #warn $consts; # for development
 eval $consts;
-push @EXPORT, (keys %XP_CONSTANTS, @MD_CONSTANTS, 'LOCAL_IP');
+push @EXPORT, (keys %XP_CONSTANTS, @MD_CONSTANTS);
+
+#findLocalIP();
 
 my %typeMap = (
 	'ui1' => 'int',
@@ -103,6 +84,42 @@ my %typeMap = (
 BEGIN {
 	use SOAP::Lite;
 	$SOAP::Constants::DO_NOT_USE_XML_PARSER = 1;
+}
+
+sub getLocalIP {
+    if (defined $UPnP::Common::LocalIP) {
+        return $UPnP::Common::LocalIP;
+    }
+
+    my $probeSocket = IO::Socket::INET->new(Proto => 'udp',
+                                             Reuse => 1);
+
+    my $listenSocket = IO::Socket::INET->new(Proto => 'udp',
+                                             Reuse => 1,
+                                             LocalPort => PROBE_PORT);
+    my $ip_mreq = inet_aton(PROBE_IP) . INADDR_ANY;
+    setsockopt($listenSocket, 
+                       getprotobyname('ip'),
+                       $ref->[1],
+                       $ip_mreq);
+
+    my $destaddr = sockaddr_in(PROBE_PORT, inet_aton(PROBE_IP));
+    send($probeSocket, "Test", 0, $destaddr);
+
+    my $buf = '';
+    my $peer = recv($listenSocket, $buf, 2048, 0);
+    my ($port, $addr) = sockaddr_in($peer);
+    
+    $probeSocket->close;
+    $listenSocket->close;
+
+    setLocalIP($addr);
+    return $UPnP::Common::LocalIP;
+}
+
+sub setLocalIP {
+    my ($addr) = @_;
+    $UPnP::Common::LocalIP = inet_ntoa($addr);
 }
 
 sub parseHTTPHeaders {
@@ -187,6 +204,7 @@ sub parseDeviceElement {
 
 		if ($childName eq 'deviceList') {
 			my $childDevices = $childElement->[2];
+                        next if (ref $childDevices ne "ARRAY");
 			for my $deviceElement (@$childDevices) {
 				my $childDevice = $self->parseDeviceElement($deviceElement, 
 															$device,
@@ -469,6 +487,8 @@ sub _parseArgumentList {
 	my $list = shift;
 	my $action = shift;
 
+        return if (! ref $list);
+
 	for my $argumentElement (@$list) {
 		my($name, $attrs, $children) = @$argumentElement;
 		if ($name eq 'argument') {
@@ -528,8 +548,7 @@ sub _parseStateTable {
 	for my $varElement (@$list) {
 		my($name, $attrs, $children) = @$varElement;
 		if ($name eq 'stateVariable') {
-			my $var = UPnP::Common::StateVariable->new($attrs->{sendEvents} eq
-													   'yes');
+			my $var = UPnP::Common::StateVariable->new(exists $attrs->{sendEvents} && ($attrs->{sendEvents} eq 'yes'));
 			for my $varChild (@$children) {
 				my ($childName) = @$varChild;
 				if ($childName eq 'name') {
@@ -613,13 +632,21 @@ sub addOutArgument {
 sub inArguments {
 	my $self = shift;
 
-	return @{$self->{_inArguments}};
+	if (defined $self->{_inArguments}) {
+		return @{$self->{_inArguments}};
+	}
+
+	return ();
 }
 
 sub outArguments {
 	my $self = shift;
 
-	return @{$self->{_outArguments}};
+	if (defined $self->{_outArguments}) {
+		return @{$self->{_outArguments}};
+	}
+
+	return ();
 }
 
 sub arguments {

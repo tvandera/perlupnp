@@ -86,7 +86,7 @@ sub registerDevice {
 	}
 
 	# Set the location of the device
-	my $base = 'http://' . LOCAL_IP . ':' . $devicePort;
+	my $base = 'http://' . UPnP::Common::getLocalIP() . ':' . $devicePort;
 	my $location = URI->new_abs($descriptionURI, $base);
 
 	my ($device) = $self->parseDeviceDescription($description,

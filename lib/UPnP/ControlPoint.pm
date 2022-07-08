@@ -20,9 +20,12 @@ require Exporter;
 our @ISA = qw(Exporter UPnP::Common::DeviceLoader);
 our $VERSION = $UPnP::Common::VERSION;
 
+use constant DEFAULT_SSDP_SEARCH_ADDR => '0.0.0.0';
 use constant DEFAULT_SSDP_SEARCH_PORT => 8008;
 use constant DEFAULT_SUBSCRIPTION_PORT => 8058;
 use constant DEFAULT_SUBSCRIPTION_URL => '/eventSub';
+
+our %IGNOREIP;
 
 sub new {
     my($self, %args) = @_;
@@ -30,13 +33,15 @@ sub new {
 
     $self = $class->SUPER::new(%args);
 
+    my $searchAddr = $args{SearchAddr} || DEFAULT_SSDP_SEARCH_ADDR;
     my $searchPort = $args{SearchPort} || DEFAULT_SSDP_SEARCH_PORT;
     my $subscriptionPort = $args{SubscriptionPort} || DEFAULT_SUBSCRIPTION_PORT;
-	my $maxWait = $args{MaxWait} || 3;
+    my $maxWait = $args{MaxWait} || 3;
 
 	# Create the socket on which search requests go out
     $self->{_searchSocket} = IO::Socket::INET->new(Proto => 'udp',
-												   LocalPort => $searchPort) ||
+        LocalAddr => $searchAddr,
+        LocalPort => $searchPort) ||
 	croak("Error creating search socket: $!\n");
 	setsockopt($self->{_searchSocket}, 
 			   IP_LEVEL,
@@ -47,7 +52,10 @@ sub new {
 	# Create the socket on which we'll listen for events to which we are
 	# subscribed.
     $self->{_subscriptionSocket} = HTTP::Daemon->new(
-											 LocalPort => $subscriptionPort) ||
+											 LocalPort => $subscriptionPort,
+											 ReuseAddr=>1,
+											 ReusePort=>1,
+											 Listen=>20) ||
 	croak("Error creating subscription socket: $!\n");
 	$self->{_subscriptionURL} = $args{SubscriptionURL} || DEFAULT_SUBSCRIPTION_URL;
 	$self->{_subscriptionPort} = $subscriptionPort;
@@ -79,6 +87,8 @@ sub DESTROY {
 			$subscription->unsubscribe;
 		}
 	}
+
+	$self->{_subscriptionSocket}
 }
 
 sub searchByType {
@@ -144,6 +154,7 @@ sub handleOnce {
 	}
 	elsif ($socket == $self->{_subscriptionSocket}) {
 		if (my $connect = $socket->accept()) {
+                        return if ($IGNOREIP{$connect->peerhost()});
 			$self->_receiveSubscriptionNotification($connect);
 		}
 	}
@@ -171,7 +182,7 @@ sub stopHandling {
 sub subscriptionURL {
 	my $self = shift;
 	return URI->new_abs($self->{_subscriptionURL},
-						'http://' . LOCAL_IP . ':' .
+						'http://' . UPnP::Common::getLocalIP() . ':' .
 						$self->{_subscriptionPort});
 }
 
@@ -267,7 +278,7 @@ sub _createDevice {
 	# encoding, but wind up sending chunks without chunk size headers.
 	# This code temporarily disables the TE header in the request.
 	push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, SendTE => 0);
-	my $ua = LWP::UserAgent->new;
+	my $ua = LWP::UserAgent->new(timeout => 20);
 	my $response = $ua->get($location);
 
 	my $base;
@@ -280,7 +291,8 @@ sub _createDevice {
 		carp("Loading device description failed with error: " . 
 			 $response->code . " " . $response->message);
 	}
-	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
+	# remove key and value
+	splice(@LWP::Protocol::http::EXTRA_SOCK_OPTS, -2);
 
 	if ($device) {
 		$device->base($base ? $base : $location);
@@ -331,7 +343,9 @@ sub _receiveSearchResponse {
 	my $socket = shift;
 	my $buf = '';
 
-	recv($socket, $buf, 2048, 0);
+	my $peer = recv($socket, $buf, 2048, 0);
+        my @peerdata = unpack_sockaddr_in($peer);
+        return if ($IGNOREIP{inet_ntoa($peerdata[1])});
 
 	if ($buf !~ /\015?\012\015?\012/) {
 		return;
@@ -343,6 +357,31 @@ sub _receiveSearchResponse {
 		return;
 	}
 
+        # Basic check to see if the response is actually for a search
+        my $found = 0;
+        foreach my $searchkey (keys %{$self->{_activeSearches}}) {
+            my $search = $self->{_activeSearches}->{$searchkey};
+            if ($search->{_type} && $buf =~ $search->{_type}) {
+                $found = 1;
+                last;
+            }
+
+            if ($search->{_udn} && $buf =~ $search->{_udn}) {
+                $found = 1;
+                last;
+            }
+
+            if ($search->{_friendlyName} && $search->{_friendlyName}) {
+                $found = 1;
+                last;
+            }
+
+        }
+
+        if (! $found) {
+            #print "Unknown response: " . Dumper($buf); #ALW uncomment
+            return;
+        } 
 
 	my $code = $2;
 	if ($code ne '200') {
@@ -362,17 +401,22 @@ sub _receiveSSDPEvent {
 	my $socket = shift;
 	my $buf = '';
 
-	recv($socket, $buf, 2048, 0);
+	my $peer = recv($socket, $buf, 2048, 0);
+        my @peerdata = unpack_sockaddr_in($peer);
+        return if ($IGNOREIP{inet_ntoa($peerdata[1])});
 
 	if ($buf !~ /\015?\012\015?\012/) {
 		return;
 	}
+
 
 	$buf =~ s/^(?:\015?\012)+//;  # ignore leading blank lines
 	unless ($buf =~ s/^(\S+)[ \t]+(\S+)(?:[ \t]+(HTTP\/\d+\.\d+))?[^\012]*\012//) {
 		# Bad header
 		return;
 	}
+
+        #print Dumper($buf); #ALW uncomment
 
 	my $method = $1;
 	if ($method ne 'NOTIFY') {
@@ -492,6 +536,7 @@ package UPnP::ControlPoint::Service;
 
 use strict;
 
+use Socket;
 use Scalar::Util qw(weaken);
 use SOAP::Lite;
 use Carp;
@@ -557,13 +602,25 @@ sub queryStateVariable {
 	if (!$var) { croak("No such state variable $name"); }
 	if (!$var->evented) { croak("Variable $name is not evented"); }
 
-	my $result = SOAP::Lite
-		->uri('urn:schemas-upnp-org:control-1-0')
-		->proxy($self->controlURL)
-		->call('QueryStateVariable' => 
-			   SOAP::Data->name('varName')
-			   		   ->uri('urn:schemas-upnp-org:control-1-0')
-			   		   ->value($name));
+        my $result;
+        if ($SOAP::Lite::VERSION >= 0.67) {
+            $result = SOAP::Lite
+                    ->ns("u")
+                    ->uri('urn:schemas-upnp-org:control-1-0')
+                    ->proxy($self->controlURL)
+                    ->call('QueryStateVariable' => 
+                               SOAP::Data->name('varName')
+                                               ->uri('urn:schemas-upnp-org:control-1-0')
+                                               ->value($name));
+        } else {
+            $result = SOAP::Lite
+                    ->uri('urn:schemas-upnp-org:control-1-0')
+                    ->proxy($self->controlURL)
+                    ->call('QueryStateVariable' => 
+                               SOAP::Data->name('varName')
+                                               ->uri('urn:schemas-upnp-org:control-1-0')
+                                               ->value($name));
+        }
 
 	if ($result->fault()) {
 		carp("Query failed with fault " . $result->faultstring());
@@ -579,15 +636,26 @@ sub subscribe {
 	my $timeout = shift;
 	my $cp = $self->{_controlPoint};
 
+        if (!defined $UPnP::Common::LocalIP) {
+            # Find our local IP
+            my $u = URI->new($self->eventSubURL);
+            my $proto = getprotobyname('tcp');
+            socket(Socket_Handle, PF_INET, SOCK_STREAM, $proto);
+            my $sin = sockaddr_in($u->port(),inet_aton($u->host()));
+            connect(Socket_Handle,$sin);
+
+            my ($port, $addr) = sockaddr_in(getsockname(Socket_Handle));
+            close(Socket_Handle);
+            UPnP::Common::setLocalIP($addr);
+        }
+
 	if (defined($cp)) {
 		my $url = $self->eventSubURL;
-		my $request = HTTP::Request->new('SUBSCRIBE', 
-										 "$url");
+		my $request = HTTP::Request->new('SUBSCRIBE', "$url");
 		$request->header('NT', 'upnp:event');
 		$request->header('Callback', '<' . $cp->subscriptionURL . '>');
-		$request->header('Timeout', 
-						 'Second-' . defined($timeout) ?  $timeout : 'infinite');
-		my $ua = LWP::UserAgent->new;
+		$request->header('Timeout', 'Second-' . defined($timeout) ?  $timeout : 'infinite');
+		my $ua = LWP::UserAgent->new(timeout => 20);
 		my $response = $ua->request($request);
 
 		if ($response->is_success &&
@@ -624,7 +692,7 @@ sub unsubscribe {
 	my $request = HTTP::Request->new('UNSUBSCRIBE', 
 									 "$url");
 	$request->header('SID', $subscription->SID);
-	my $ua = LWP::UserAgent->new;
+	my $ua = LWP::UserAgent->new(timeout => 20);
 	my $response = $ua->request($request);
 	
 	if ($response->is_success) {
@@ -660,7 +728,7 @@ sub _loadDescription {
 	my $parser = $cp->parser;
 
 	push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, SendTE => 0);
-	my $ua = LWP::UserAgent->new;
+	my $ua = LWP::UserAgent->new(timeout => 20);
 	my $response = $ua->get($location);
 	
 	if ($response->is_success) {
@@ -670,7 +738,8 @@ sub _loadDescription {
 		carp("Error loading SCPD document: $!");
 	}
 
-	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
+	# remove both key and value
+	splice(@LWP::Protocol::http::EXTRA_SOCK_OPTS, -2);
 
 	$self->{_loadedDescription} = 1;
 }
@@ -690,10 +759,17 @@ use vars qw($AUTOLOAD);
 sub new {
     my($class, $service) = @_;
 
-	return bless {
-		_service => $service,
-		_proxy => SOAP::Lite->uri($service->serviceType)->proxy($service->controlURL),
-	}, $class;
+        if ($SOAP::Lite::VERSION >= 0.67) {
+            return bless {
+                    _service => $service,
+                    _proxy => SOAP::Lite->ns("u")->uri($service->serviceType)->proxy($service->controlURL),
+            }, $class;
+        } else {
+            return bless {
+                    _service => $service,
+                    _proxy => SOAP::Lite->uri($service->serviceType)->proxy($service->controlURL),
+            }, $class;
+        }
 }
 
 sub AUTOLOAD {
@@ -906,7 +982,7 @@ sub renew {
 	$request->header('Timeout', 
 					 'Second-' . defined($timeout) ? $timeout : 'infinite');
 
-	my $ua = LWP::UserAgent->new;
+	my $ua = LWP::UserAgent->new(timeout => 20);
 	my $response = $ua->request($request);
 
 	if ($response->is_success) {
