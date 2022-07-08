@@ -595,7 +595,7 @@ sub new {
 
 	# Create the socket on which search requests go out
 	$self->{_searchSocket} = IO::Socket::INET->new(Proto => 'udp',
-												   Reuse => 1,
+												   ReuseAddr => 1, ReusePort => 1,
 												   LocalPort => $searchPort) ||
 	croak("Error creating search socket: $!\n");
 	setsockopt($self->{_searchSocket}, 
@@ -607,7 +607,7 @@ sub new {
 	# Create the socket on which we'll listen for events to which we are
 	# subscribed.
 	$self->{_subscriptionSocket} = HTTP::Daemon->new(
-											 Reuse => 1,
+											 ReuseAddr => 1, ReusePort => 1,
 											 LocalPort => $subscriptionPort) ||
 	croak("Error creating subscription socket: $!\n");
 	$self->{_subscriptionURL} = $args{SubscriptionURL} || DEFAULT_SUBSCRIPTION_URL;
@@ -616,7 +616,7 @@ sub new {
 	# Create the socket on which we'll listen for SSDP Notifications.
 	$self->{_ssdpMulticastSocket} = IO::Socket::INET->new(
 													 Proto => 'udp',
-													 Reuse => 1,
+													 ReuseAddr => 1, ReusePort => 1,
 													 LocalPort => SSDP_PORT) ||
 	croak("Error creating SSDP multicast listen socket: $!\n");
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;

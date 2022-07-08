@@ -358,7 +358,7 @@ sub new {
 
 	# Create the socket on which SSDP notifications go out
 	$self->{_ssdpNotificationSocket} = IO::Socket::INET->new(
-											Reuse => 1,
+											ReuseAddr => 1, ReusePort => 1,
 											Proto => 'udp',
 											LocalPort => $notificationPort) ||
 		croak("Error creating SSDP notification socket: $!\n");
@@ -370,7 +370,7 @@ sub new {
 	# Create the socket on which we'll listen for SSDP queries.
 	$self->{_ssdpListenSocket} = IO::Socket::INET->new(
 													 Proto => 'udp',
-													 Reuse => 1,
+													 ReuseAddr => 1, ReusePort => 1,
 													 LocalPort => SSDP_PORT) ||
 		croak("Error creating SSDP multicast listen socket: $!\n");
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
@@ -1043,7 +1043,7 @@ sub new {
 						  },
 						  dispatch_to => ('UPnP::DeviceManager::Serializer'),);
 		$self->on_action(sub {});
-		$self->{_daemon} = HTTP::Daemon->new(Reuse => 1,
+		$self->{_daemon} = HTTP::Daemon->new(ReuseAddr => 1, ReusePort => 1,
 											 LocalPort => $args{DevicePort}) ||
 			croak("Failed to create HTTP::Daemon: $!");
 		$self->{_descriptionURI} = $args{DescriptionURI};

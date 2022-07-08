@@ -53,7 +53,7 @@ if ($pid) {
 	# Create a socket on which we can hear the ControlPoint's SSDP
 	# events
 	my $ssdpSocket = IO::Socket::INET->new(Proto => 'udp',
-										   Reuse => 1,
+										   ReuseAddr => 1, ReusePort => 1,
 										   LocalPort => SSDP_PORT) ||
 											   die("Error creating SSDP multicast listen socket: $!\n");
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
