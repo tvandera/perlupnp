@@ -11,7 +11,7 @@ UPnP::ControlPoint - A UPnP ControlPoint implementation.
   use UPnP::ControlPoint;
 
   my $cp = UPnP::ControlPoint->new;
-  my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1", 
+  my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1",
 								 \&callback);
   $cp->handle;
 
@@ -36,26 +36,26 @@ aspects of the UPnP architecture from the standpoint of a ControlPoint:
 
 =over 4
 
-=item 1. Discovery 
+=item 1. Discovery
 
 A ControlPoint can be used to actively search for devices and services
 on a local network or listen for announcements as devices enter and
 leave the network. The protocol used for discovery is the Simple
 Service Discovery Protocol (SSDP).
 
-=item 2. Description 
+=item 2. Description
 
 A ControlPoint can get information describing devices and
 services. Devices can be queried for services and vendor-specific
 information. Services can be queried for actions and state variables.
 
-=item 3. Control 
+=item 3. Control
 
 A ControlPoint can invoke actions on services and poll for state
 variable values. Control-related calls are generally made using the
 Simple Object Access Protocol (SOAP).
 
-=item 4. Eventing 
+=item 4. Eventing
 
 ControlPoints can listen for events describing state changes in
 devices and services. Subscription requests and state change events
@@ -201,27 +201,27 @@ not be directly instantiated.
 
 =over 4
 
-=item deviceType 
+=item deviceType
 
-=item friendlyName 
+=item friendlyName
 
-=item manufacturer 
+=item manufacturer
 
-=item manufacturerURL 
+=item manufacturerURL
 
-=item modelDescription 
+=item modelDescription
 
-=item modelName 
+=item modelName
 
-=item modelNumber 
+=item modelNumber
 
-=item modelURL 
+=item modelURL
 
-=item serialNumber 
+=item serialNumber
 
 =item UDN
 
-=item presentationURL 
+=item presentationURL
 
 =item UPC
 
@@ -265,11 +265,11 @@ not be directly instantiated.
 
 =over 4
 
-=item serviceType 
+=item serviceType
 
-=item serviceId 
+=item serviceId
 
-=item SCPDURL 
+=item SCPDURL
 
 =item controlURL
 
@@ -406,7 +406,7 @@ The name of the argument returned as a string.
 
 =item relatedStateVariable
 
-The name of the related state variable (which can be used to find the 
+The name of the related state variable (which can be used to find the
 type of the argument) returned as a string.
 
 =back
@@ -483,7 +483,7 @@ Was the invocation successful or did it result in a fault.
 =item getValue ( NAME )
 
 Gets the value of an out argument of the action invocation. The
-C<NAME> parameter specifies which out argument value should be 
+C<NAME> parameter specifies which out argument value should be
 returned. The type of the returned value depends on the type
 specified in the service description file.
 
@@ -520,7 +520,7 @@ number.
 
 Has the subscription expired yet?
 
-=item renew 
+=item renew
 
 Renews a subscription with the remote service by sending a GENA
 subscription event.
@@ -598,7 +598,7 @@ sub new {
 												   ReuseAddr => 1, ReusePort => 1,
 												   LocalPort => $searchPort) ||
 	croak("Error creating search socket: $!\n");
-	setsockopt($self->{_searchSocket}, 
+	setsockopt($self->{_searchSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
@@ -620,11 +620,11 @@ sub new {
 													 LocalPort => SSDP_PORT) ||
 	croak("Error creating SSDP multicast listen socket: $!\n");
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
-	setsockopt($self->{_ssdpMulticastSocket}, 
+	setsockopt($self->{_ssdpMulticastSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_ADD_MEMBERSHIP'),
 			   $ip_mreq);
-	setsockopt($self->{_ssdpMulticastSocket}, 
+	setsockopt($self->{_ssdpMulticastSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
@@ -696,7 +696,7 @@ sub sockets {
 sub handleOnce {
 	my $self = shift;
 	my $socket = shift;
-	
+
 	if ($socket == $self->{_searchSocket}) {
 		$self->_receiveSearchResponse($socket);
 	}
@@ -796,7 +796,7 @@ sub _parseUSNHeader {
 sub _firstLocation {
 	my $headers = shift;
 	my $location = $headers->header('Location');
-	
+
 	return $location if $location;
 
 	my $al = $headers->header('AL');
@@ -838,9 +838,10 @@ sub _createDevice {
 													  {ControlPoint => $self});
 	}
 	else {
-		carp("Loading device description failed with error: " . 
+		carp("Loading device description failed with error: " .
 			 $response->code . " " . $response->message);
 	}
+	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
 	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
 
 	if ($device) {
@@ -856,7 +857,7 @@ sub _getDeviceFromHeaders {
 	my $create = shift;
 
 	my $location = _firstLocation($headers);
-	my ($udn, $deviceType, $serviceType) = 
+	my ($udn, $deviceType, $serviceType) =
 		_parseUSNHeader($headers->header('USN'));
 	my $device = $self->{_devices}->{$udn};
 	if (!defined($device) && $create) {
@@ -865,14 +866,14 @@ sub _getDeviceFromHeaders {
 			$self->{_devices}->{$udn} = $device;
 		}
 	}
-	
+
 	return $device;
 }
 
 sub _deviceAdded {
 	my $self = shift;
 	my $device = shift;
-	
+
 	for my $search (values %{$self->{_activeSearches}}) {
 		$search->deviceAdded($device);
 	}
@@ -943,7 +944,7 @@ sub _receiveSSDPEvent {
 
 	my $headers = UPnP::Common::parseHTTPHeaders($buf);
 	my $eventType = $headers->header('NTS');
-	my $device = $self->_getDeviceFromHeaders($headers, 
+	my $device = $self->_getDeviceFromHeaders($headers,
 											  $eventType =~ /alive/ ?
 											  1 : 0);
 
@@ -1001,7 +1002,7 @@ sub _receiveSubscriptionNotification {
 
 	my $request = $connect->get_request();
 	if ($request && ($request->method eq 'NOTIFY') &&
-		($request->header('NT') eq 'upnp:event') && 
+		($request->header('NT') eq 'upnp:event') &&
 		($request->header('NTS') eq 'upnp:propchange')) {
 		my $sid = $request->header('SID');
 		my $subscription = $self->{_subscriptions}->{$sid};
@@ -1034,11 +1035,11 @@ sub base {
 
 	if (defined($base)) {
 		$self->{_base} = $base;
-		
+
 		for my $service ($self->services) {
 			$service->base($base);
 		}
-		
+
 		for my $device ($self->children) {
 			$device->base($base);
 		}
@@ -1084,7 +1085,7 @@ sub AUTOLOAD {
 	my $self = shift;
 	my $attr = $AUTOLOAD;
 	$attr =~ s/.*:://;
-	return if $attr eq 'DESTROY';	
+	return if $attr eq 'DESTROY';
 
 	my $superior = "SUPER::$attr";
 	my $val = $self->$superior(@_);
@@ -1121,7 +1122,7 @@ sub queryStateVariable {
 	my $result = SOAP::Lite
 		->uri('urn:schemas-upnp-org:control-1-0')
 		->proxy($self->controlURL)
-		->call('QueryStateVariable' => 
+		->call('QueryStateVariable' =>
 			   SOAP::Data->name('varName')
 					   ->uri('urn:schemas-upnp-org:control-1-0')
 					   ->value($name));
@@ -1142,11 +1143,11 @@ sub subscribe {
 
 	if (defined($cp)) {
 		my $url = $self->eventSubURL;
-		my $request = HTTP::Request->new('SUBSCRIBE', 
+		my $request = HTTP::Request->new('SUBSCRIBE',
 										 "$url");
 		$request->header('NT', 'upnp:event');
 		$request->header('Callback', '<' . $cp->subscriptionURL . '>');
-		$request->header('Timeout', 
+		$request->header('Timeout',
 						 'Second-' . defined($timeout) ?  $timeout : 'infinite');
 		my $ua = LWP::UserAgent->new;
 		my $response = $ua->request($request);
@@ -1167,9 +1168,9 @@ sub subscribe {
 										   EventSubURL => "$url");
 			$cp->addSubscription($subscription);
 			return $subscription;
-		} 
+		}
 		else {
-			carp("Subscription request failed with error: " . 
+			carp("Subscription request failed with error: " .
 				 $response->code . " " . $response->message);
 		}
 	}
@@ -1182,21 +1183,21 @@ sub unsubscribe {
 	my $subscription = shift;
 
 	my $url = $self->eventSubURL;
-	my $request = HTTP::Request->new('UNSUBSCRIBE', 
+	my $request = HTTP::Request->new('UNSUBSCRIBE',
 									 "$url");
 	$request->header('SID', $subscription->SID);
 	my $ua = LWP::UserAgent->new;
 	my $response = $ua->request($request);
-	
+
 	if ($response->is_success) {
 		my $cp = $self->{_controlPoint};
-		
+
 		if (defined($cp)) {
 			$cp->removeSubscription($subscription);
 		}
 	}
 	else {
-		carp("Unsubscription request failed with error: " . 
+		carp("Unsubscription request failed with error: " .
 			 $response->code . " " . $response->message);
 	}
 }
@@ -1223,7 +1224,7 @@ sub _loadDescription {
 	push(@LWP::Protocol::http::EXTRA_SOCK_OPTS, SendTE => 0);
 	my $ua = LWP::UserAgent->new;
 	my $response = $ua->get($location);
-	
+
 	if ($response->is_success) {
 		$self->parseServiceDescription($parser, $response->content);
 	}
@@ -1231,6 +1232,7 @@ sub _loadDescription {
 		carp("Error loading SCPD document: $!");
 	}
 
+	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
 	pop(@LWP::Protocol::http::EXTRA_SOCK_OPTS);
 
 	$self->{_loadedDescription} = 1;
@@ -1263,7 +1265,7 @@ sub AUTOLOAD {
 	my $proxy = $self->{_proxy};
 	my $method = $AUTOLOAD;
 	$method =~ s/.*:://;
-	return if $method eq 'DESTROY';	  
+	return if $method eq 'DESTROY';
 
 	my $action = $service->getAction($method);
 	croak "invalid method: ->$method()" unless $action;
@@ -1295,7 +1297,7 @@ use vars qw($AUTOLOAD);
 sub new {
 	my($class, %args) = @_;
 	my $som = $args{SOM};
-	
+
 	my $self = bless {
 		_som => $som,
 	}, $class;
@@ -1342,7 +1344,7 @@ sub AUTOLOAD {
 	my $self = shift;
 	my $method = $AUTOLOAD;
 	$method =~ s/.*:://;
-	return if $method eq 'DESTROY';	  
+	return if $method eq 'DESTROY';
 
 	return $self->{_som}->$method(@_);
 }
@@ -1367,12 +1369,12 @@ sub new {
 sub _passesFilter {
 	my $self = shift;
 	my $device = shift;
-	
+
 	my $type = $self->{_type};
 	my $name = $self->{_friendlyName};
 	my $udn = $self->{_udn};
 
-	if ((!defined($type) || ($type eq $device->deviceType()) || 
+	if ((!defined($type) || ($type eq $device->deviceType()) ||
 		 ($type eq 'ssdp:all')) &&
 		(!defined($name) || ($name eq $device->friendlyName())) &&
 		(!defined($udn) || ($udn eq $device->udn()))) {
@@ -1461,10 +1463,10 @@ sub renew {
 	my $timeout = shift;
 
 	my $url = $self->{_eventSubURL};
-	my $request = HTTP::Request->new('SUBSCRIBE', 
+	my $request = HTTP::Request->new('SUBSCRIBE',
 									 "$url");
 	$request->header('SID', $self->{_sid});
-	$request->header('Timeout', 
+	$request->header('Timeout',
 					 'Second-' . defined($timeout) ? $timeout : 'infinite');
 
 	my $ua = LWP::UserAgent->new;
@@ -1480,10 +1482,10 @@ sub renew {
 		$self->{_startTime} = Time::HiRes::time();
 	}
 	else {
-		carp("Renewal of subscription failed with error: " . 
+		carp("Renewal of subscription failed with error: " .
 			 $response->code . " " . $response->message);
 	}
-	
+
 	return $self;
 }
 
