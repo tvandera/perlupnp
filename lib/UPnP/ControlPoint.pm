@@ -1255,7 +1255,7 @@ sub new {
 
 	return bless {
 		_service => $service,
-		_proxy => SOAP::Lite->ns($service->serviceType, 'u')->proxy($service->controlURL),
+		_proxy => SOAP::Lite->proxy($service->controlURL)->ns($service->serviceType),
 	}, $class;
 }
 
