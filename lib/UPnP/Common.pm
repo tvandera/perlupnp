@@ -635,7 +635,10 @@ for my $prop (qw(name retval)) {
 }
 
 sub new {
-	return bless {}, shift;
+	my $self = bless {}, shift;
+	@{$self->{_outArguments}} = ();
+	@{$self->{_inArguments}} = ();
+	return $self;
 }
 
 sub AUTOLOAD {
