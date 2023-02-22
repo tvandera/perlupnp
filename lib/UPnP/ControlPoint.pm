@@ -642,6 +642,20 @@ sub DESTROY {
 	}
 }
 
+sub addByLocation {
+	my $self = shift;
+	my $location = shift;
+	my @devices = ();
+
+	my $device = $self->_createDevice($location);
+	next unless $device;
+	my $udn = $device->UDN;
+	$self->{_devices}->{$udn} = $device;
+	$self->_deviceAdded($device);
+
+	return $device;
+}
+
 sub searchByType {
 	my $self = shift;
 	my $type = shift;
