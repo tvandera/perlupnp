@@ -2,7 +2,7 @@ use 5.006;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME              => 'UPnP',
+    NAME              => 'UPnP::ControlPoint',
     VERSION_FROM      => 'lib/UPnP/Common.pm', # finds $VERSION
     PREREQ_PM         => {SOAP::Lite => 0.55,
                           LWP::UserAgent => 2.0,
