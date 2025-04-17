@@ -80,7 +80,7 @@ use		vars qw(@EXPORT $VERSION @ISA $AUTOLOAD);
 require Exporter;
 
 our @ISA = qw(Exporter);
-our $VERSION = '0.4';
+our $VERSION = $UPnP::ControlPoint::VERSION;
 
 # Constants exported for all UPnP modules
 use constant SSDP_IP => "239.255.255.250";
