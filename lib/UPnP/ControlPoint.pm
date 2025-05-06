@@ -1502,6 +1502,8 @@ sub renew {
 	else {
 		carp("Renewal of subscription failed with error: " .
 			 $response->code . " " . $response->message);
+
+		return;
 	}
 
 	return $self;
