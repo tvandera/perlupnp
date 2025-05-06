@@ -1158,14 +1158,13 @@ sub subscribe {
 	my $callback = shift;
 	my $timeout = shift;
 	my $cp = $self->{_controlPoint};
-	my $callbackURL = $cp->subscriptionURL;
 
 	if (defined($cp)) {
 		my $url = $self->eventSubURL;
 		my $request = HTTP::Request->new('SUBSCRIBE',
 										 "$url");
 		$request->header('NT', 'upnp:event');
-		$request->header('Callback', '<' . $callbackURL . '>');
+		$request->header('Callback', '<' . $cp->subscriptionURL . '>');
 		$request->header('Timeout',
 						 'Second-' . defined($timeout) ?  $timeout : 'infinite');
 		my $ua = LWP::UserAgent->new;
@@ -1184,8 +1183,7 @@ sub subscribe {
 										   Callback => $callback,
 										   SID => $sid,
 										   Timeout => $timeout,
-										   EventSubURL => $url,
-										   CallbackURL => $callbackURL);
+										   EventSubURL => "$url");
 			$cp->addSubscription($subscription);
 			return $subscription;
 		}
@@ -1445,7 +1443,6 @@ sub new {
 		_timeout => $args{Timeout},
 		_startTime => Time::HiRes::time(),
 		_eventSubURL => $args{EventSubURL},
-		_callbackURL => $args{CallbackURL},
 	}, $class;
 	weaken($self->{_service} = $args{Service});
 
@@ -1487,8 +1484,6 @@ sub renew {
 	my $request = HTTP::Request->new('SUBSCRIBE',
 									 "$url");
 	$request->header('SID', $self->{_sid});
-	$request->header('NT', 'upnp:event');
-	$request->header('Callback', '<' . $self->{_callbackURL} . '>');
 	$request->header('Timeout',
 					 'Second-' . defined($timeout) ? $timeout : 'infinite');
 
