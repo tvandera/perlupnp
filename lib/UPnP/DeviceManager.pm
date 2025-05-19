@@ -31,17 +31,17 @@ one or more devices:
 Devices registered with the DeviceManager will automatically advertise
 themselves and respond to UPnP searches.
 
-=item * Description 
+=item * Description
 
 Devices register themselves with description documents. These
 descriptions are served via HTTP to interested ControlPoints.
 
-=item * Control 
+=item * Control
 
 Devices respond to action invocations and state queries from
 ControlPoints.
 
-=item * Eventing 
+=item * Eventing
 
 Changes to device state result in events sent to interested
 subscribers.
@@ -226,7 +226,7 @@ might implement a GetTemperature action:
 
 	return $temp;
   }
- 
+
 
 A mutually exclusive alternative to directly dispatching to a module
 is to use the C<onAction> callback method.
@@ -236,7 +236,7 @@ is to use the C<onAction> callback method.
 Used to set the values of state variables for the service. The
 parameters to this call should be name-value pairs for one or more
 evented state variables for the service. Results in GENA
-notifications to any subscribers to this service. 
+notifications to any subscribers to this service.
 
 The value of the state variable is remembered by the service
 instance. Device implementors who do not need to dynamically look up
@@ -260,7 +260,7 @@ above is:
   sub actionSub {
 	my $service = shift;
 	my $action = shift;
-  
+
 	if ($action eq 'GetTemperature') {
 	  my $scale = shift;
 	  Code to look up temperature and return in the given scale...
@@ -340,7 +340,7 @@ use		vars qw($VERSION @ISA);
 require Exporter;
 
 our @ISA = qw(Exporter UPnP::Common::DeviceLoader);
-our $VERSION = $UPnP::Common::VERSION;
+our $VERSION = $UPnP::ControlPoint::VERSION;
 
 use constant DEFAULT_DEVICE_PORT => 4004;
 use constant DEFAULT_DESCRIPTION_URI => '/description.xml';
@@ -353,7 +353,7 @@ sub new {
 
 	$self = $class->SUPER::new(%args);
 
-	my $notificationPort = $args{NotificationPort} || 
+	my $notificationPort = $args{NotificationPort} ||
 		DEFAULT_NOTIFICATION_PORT;
 
 	# Create the socket on which SSDP notifications go out
@@ -362,7 +362,7 @@ sub new {
 											Proto => 'udp',
 											LocalPort => $notificationPort) ||
 		croak("Error creating SSDP notification socket: $!\n");
-	setsockopt($self->{_ssdpNotificationSocket}, 
+	setsockopt($self->{_ssdpNotificationSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
@@ -374,11 +374,11 @@ sub new {
 													 LocalPort => SSDP_PORT) ||
 		croak("Error creating SSDP multicast listen socket: $!\n");
 	my $ip_mreq = inet_aton(SSDP_IP) . INADDR_ANY;
-	setsockopt($self->{_ssdpListenSocket}, 
+	setsockopt($self->{_ssdpListenSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_ADD_MEMBERSHIP'),
 			   $ip_mreq);
-	setsockopt($self->{_ssdpListenSocket}, 
+	setsockopt($self->{_ssdpListenSocket},
 			   IP_LEVEL,
 			   UPnP::Common::getPlatformConstant('IP_MULTICAST_TTL'),
 			   pack 'I', 4);
@@ -431,7 +431,7 @@ sub registerDevice {
 									   DeviceDescription => $description,
 									   ResourceDirectory => $resourceDir,
 									   Device => $device,
-									   Server => $self->server);			   
+									   Server => $self->server);
 		$device->handler($handler);
 		$self->{_handlers}->{$handler->socket} = $handler;
 		push @{$self->{_devices}}, $device;
@@ -443,7 +443,7 @@ sub registerDevice {
 sub sockets {
 	my $self = shift;
 
-	return ($self->{_ssdpListenSocket}, 
+	return ($self->{_ssdpListenSocket},
 			map { $_->socket } values %{$self->{_handlers}});
 }
 
@@ -464,7 +464,7 @@ sub handleOnce {
 			$handler->handle();
 		}
 	}
-	
+
 	return $self->heartbeat;
 }
 
@@ -541,7 +541,7 @@ sub addNotification {
 	};
 
 	$self->{_pendingNotifications} = [sort { $a->{Time} <=>
-											 $b->{Time} } 
+											 $b->{Time} }
 								  @{$self->{_pendingNotifications}}];
 }
 
@@ -572,7 +572,7 @@ sub _receiveSSDPEvent {
 	my $headers = UPnP::Common::parseHTTPHeaders($buf);
 	my $target = $headers->header('ST');
 	my $mx = $headers->header('MX');
-	
+
 	my @matches;
 	for my $device (@{$self->{_devices}}) {
 		push @matches, $device->matches($target);
@@ -610,7 +610,7 @@ sub _sendSearchResponse {
 	$r->header('ST', $response->{ST});
 	$r->header('EXT', '');
 
-	send($self->{_ssdpNotificationSocket}, $r->as_string, 0, 
+	send($self->{_ssdpNotificationSocket}, $r->as_string, 0,
 		 $response->{Destination});
 }
 
@@ -626,13 +626,13 @@ sub sendAdvertisement {
 	$request->header('Server', $self->server);
 	$request->header('NTS', $alive ? 'ssdp:alive' : 'ssdp:byebye');
 	$request->header('Cache-control', 'max-age = ' . $device->leaseTime);
-	
+
 	my $destaddr = sockaddr_in(SSDP_PORT, inet_aton(SSDP_IP));
-	
+
 	if (!defined($device->parent)) {
 		$request->header('NT', 'upnp:rootdevice');
 		$request->header('USN', $device->UDN . '::upnp:rootdevice');
-		send($self->{_ssdpNotificationSocket}, $request->as_string, 0, 
+		send($self->{_ssdpNotificationSocket}, $request->as_string, 0,
 			 $destaddr);
 	}
 
@@ -641,15 +641,15 @@ sub sendAdvertisement {
 	send($self->{_ssdpNotificationSocket}, $request->as_string, 0, $destaddr);
 
 	$request->header('NT', $device->deviceType);
-	$request->header('USN', $device->UDN . '::' . 
+	$request->header('USN', $device->UDN . '::' .
 					 $device->deviceType );
 	send($self->{_ssdpNotificationSocket}, $request->as_string, 0, $destaddr);
 
 	for my $service ($device->services) {
 		$request->header('NT', $service->serviceType);
-		$request->header('USN', $device->UDN . '::' . 
+		$request->header('USN', $device->UDN . '::' .
 						 $service->serviceType);
-		send($self->{_ssdpNotificationSocket}, $request->as_string, 0, 
+		send($self->{_ssdpNotificationSocket}, $request->as_string, 0,
 			 $destaddr);
 	}
 }
@@ -662,7 +662,7 @@ sub loadFile {
 	while (<FH>) {
 		$str .= $_;
 	}
-	
+
 	return $str;
 }
 
@@ -741,9 +741,9 @@ sub leaseExpiration {
 sub advertise {
 	my $self = shift;
 	my $alive = shift;
-	
+
 	if (defined($self->{_deviceManager})) {
-		$self->{_deviceManager}->sendAdvertisement($self, 
+		$self->{_deviceManager}->sendAdvertisement($self,
 											   defined($alive) ? $alive : 1);
 		$self->leaseExpiration(Time::HiRes::time() + $self->leaseTime);
 	}
@@ -758,10 +758,10 @@ sub matches {
 		push @matches, [$self, $self->UDN . '::upnp:rootdevice',
 						'upnp:rootdevice'];
 		push @matches, [$self, $self->UDN, $self->UDN];
-		push @matches, [$self, $self->UDN . '::' . 
+		push @matches, [$self, $self->UDN . '::' .
 						$self->deviceType, $self->deviceType];
 		for my $service ($self->services) {
-			push @matches, [$self, $self->UDN . '::' . 
+			push @matches, [$self, $self->UDN . '::' .
 							$service->serviceType, $service->serviceType];
 		}
 	}
@@ -780,8 +780,8 @@ sub matches {
 	else {
 		for my $service ($self->services) {
 			if ($target eq $service->serviceType) {
-				push @matches, [$self, 
-								$self->UDN . '::' . 
+				push @matches, [$self,
+								$self->UDN . '::' .
 								$service->serviceType, $target];
 			}
 		}
@@ -796,7 +796,7 @@ sub handler {
 
 	if (defined($handler)) {
 		weaken($self->{_handler} = $handler);
-		
+
 		for my $device ($self->children) {
 			$device->handler($handler);
 		}
@@ -862,7 +862,7 @@ sub dispatchTo {
 
 sub onAction {
 	my $self = shift;
-	
+
 	if (@_) {
 		my $ref = shift;
 		if (ref $ref eq 'CODE') {
@@ -878,7 +878,7 @@ sub onAction {
 
 sub onQuery {
 	my $self = shift;
-	
+
 	if (@_) {
 		my $ref = shift;
 		if (ref $ref eq 'CODE') {
@@ -947,7 +947,7 @@ sub _loadDescription {
 	}
 	my $parser = $dm->parser;
 
-	$uri =~ s/^\///;	
+	$uri =~ s/^\///;
 	my $file = rel2abs($uri, $self->{_resourceDir});
 	if (-e $file) {
 		my $content = UPnP::DeviceManager::loadFile($file);
@@ -959,7 +959,7 @@ sub _loadDescription {
 
 sub subscribers {
 	my $self = shift;
-	
+
 	return values %{$self->{_subscribers}};
 }
 
@@ -974,7 +974,7 @@ sub addSubscriber {
 	my $self = shift;
 	my $subscriber = shift;
 	my $sid = 'uuid:' . $self->{_nextSID}++;
-	
+
 	$subscriber->sid($sid);
 	$self->{_subscribers}->{$sid} = $subscriber;
 	if ($self->{_deviceManager}) {
@@ -984,14 +984,14 @@ sub addSubscriber {
 									$self->initialNotification($subscriber);
 								});
 	}
-	
+
 	return $sid;
 }
 
 sub removeSubscriber {
 	my $self = shift;
 	my $sid = shift;
-	
+
 	$self->{_subscribers}->{$sid} = undef;
 }
 
@@ -1090,11 +1090,11 @@ sub _parseCallbackHeader {
 sub _parseTimeoutHeader {
 	my $header = shift;
 	my $timeout = 1800;
-	
+
 	if ($header && $header =~ /^Seconds-(\d+)$/) {
 		$timeout = $1;
 	}
-	
+
 	return $timeout;
 }
 
@@ -1114,13 +1114,13 @@ sub handle {
 		$response->header('Content-type', 'text/xml');
 	}
 	elsif ($self->{_SCPDURLs}->{$uri}) {
-		$uri =~ s/^\///;	
+		$uri =~ s/^\///;
 		my $file = rel2abs($uri, $self->{_resourceDir});
 		if (-e $file) {
 			$response->code(HTTP::Status::RC_OK);
 			$response->content(UPnP::DeviceManager::loadFile($file));
 			$response->header('Content-type', 'text/xml');
-		}	
+		}
 		else {
 			$response->code(HTTP::Status::RC_NOT_FOUND);
 		}
@@ -1146,7 +1146,7 @@ sub handle {
 	elsif ($service = $self->{_eventSubURLs}->{$uri}) {
 		my $sid = $r->header('SID');
 		my $subscriber;
-		if (defined($sid) && 
+		if (defined($sid) &&
 			!defined($subscriber = $service->getSubscriber($sid))) {
 			$response->code(HTTP::Status::RC_BAD_REQUEST,
 							"Unknown SID");
@@ -1238,7 +1238,7 @@ sub onDispatch {
 	my $self = shift;
 	my $request = shift;
 
-	if ($self->{_service}->onAction || 
+	if ($self->{_service}->onAction ||
 		$self->{_actionName} eq 'QueryStateVariable') {
 		my @paramsin = $request->paramsin;
 		$self->{_paramsin} = \@paramsin;
@@ -1268,7 +1268,7 @@ sub envelope {
 				my $var = $service->getStateVariable($param);
 				if ($var->evented) {
 					my $value = $service->getValue($param);
-					push @parameters, 
+					push @parameters,
 						 SOAP::Data->type($var->SOAPType => $value)
 							 ->name('return');
 				}
@@ -1300,9 +1300,9 @@ sub envelope {
 			$method = SOAP::Data->name($self->{_actionName} . 'Response')
 				->uri($service->serviceType);
 		}
-			
+
 		return $self->SUPER::envelope(
-							   $type => $method, 
+							   $type => $method,
 							   @parameters);
 	}
 
@@ -1324,7 +1324,7 @@ sub new {
 
 	$self = bless {}, $class;
 	$self->{_callbacks} = $args{Callbacks};
-	$self->{_timeout} = $args{Timeout}; 
+	$self->{_timeout} = $args{Timeout};
 	$self->{_expiration} = Time::HiRes::time() + $self->{_timeout};
 	$self->{_seq} = 0;
 
@@ -1373,7 +1373,7 @@ sub notify {
 		$content .= "\t<e:property>\n\t\t<$name>$value</$name>\n\t</e:property>\n";
 	}
 	$content .= "</e:propertyset>\n";
-	
+
 	my $seq = $self->{_seq}++;
 	my $ua = LWP::UserAgent->new;
 	for my $callback (@{$self->callbacks}) {
@@ -1391,7 +1391,7 @@ sub notify {
 		$request->content($content);
 
 		my $response = $ua->request($request);
-		
+
 		# Other than checking for success, don't worry about the
 		# details of the response.
 		last if ($response->is_success);
