@@ -18,9 +18,10 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-SOAP::Lite       (http://www.soaplite.com)
-LWP::UserAgent   (http://search.cpan.org/search?module=LWP::UserAgent)
-HTTP::Daemon     (http://search.cpan.org/search?module=HTTP::Daemon)
+SOAP::Lite        (http://www.soaplite.com)
+LWP::UserAgent    (http://search.cpan.org/search?module=LWP::UserAgent)
+HTTP::Daemon      (http://search.cpan.org/search?module=HTTP::Daemon)
+XML::Parser::Lite (http://search.cpan.org/search?module=XML::Parser::Lite)
 
 COPYRIGHT AND LICENCE
 
