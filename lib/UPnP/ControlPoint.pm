@@ -577,7 +577,7 @@ use		vars qw($VERSION @ISA);
 require Exporter;
 
 our @ISA = qw(Exporter UPnP::Common::DeviceLoader);
-our $VERSION = '0.4';
+our $VERSION = '0.5';
 
 use constant DEFAULT_SSDP_SEARCH_ADDR => '0.0.0.0';
 use constant DEFAULT_SSDP_SEARCH_PORT => 8008;
