@@ -25,8 +25,8 @@ $SIG{INT} = $SIG{KILL} = sub { $spin = 0 };
 
 # Create a socket pair for IPC between the parent and child
 # processes created below.
-my ($child, $parent) = 
-  IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC ) 
+my ($child, $parent) =
+  IO::Socket->socketpair( AF_UNIX, SOCK_STREAM, PF_UNSPEC )
 	or die "Cannot create socketpair: $!";
 $child->autoflush(1);
 $parent->autoflush(1);
@@ -52,7 +52,7 @@ if ($pid) {
 	$cp = UPnP::ControlPoint->new;
 	isa_ok( $cp, 'UPnP::ControlPoint' );
 
-	# Start a search by device type *before* any matching devices 
+	# Start a search by device type *before* any matching devices
 	# exist on the network.
 	my $search = $cp->searchByType("urn:schemas-upnp-org:device:TestDevice:1",
 								   \&searchCallback1);
@@ -86,6 +86,7 @@ else {
 			if ($sock == $parent) {
 				my $line = $sock->getline;
 				if ($line && $line eq "q\n") {
+					diag("Received q. Done.\n");
 					$spin = 0;
 				}
 				elsif (++$state == 1) {
@@ -139,64 +140,64 @@ sub searchCallback1 {
 		isa_ok( $device, 'UPnP::ControlPoint::Device' );
 
 		### deviceType
-		is( $device->deviceType, 
-			'urn:schemas-upnp-org:device:TestDevice:1', 
+		is( $device->deviceType,
+			'urn:schemas-upnp-org:device:TestDevice:1',
 			'UPnP::ControlPoint::Device::deviceType' );
 		### friendlyName
-		is( $device->friendlyName, 
-			'Perl UPnP Test Device', 
+		is( $device->friendlyName,
+			'Perl UPnP Test Device',
 			'UPnP::ControlPoint::Device::friendlyName' );
 		### manufacturer
-		is( $device->manufacturer, 
-			'Your friendly neighborhood Perl developer', 
+		is( $device->manufacturer,
+			'Your friendly neighborhood Perl developer',
 			'UPnP::ControlPoint::Device::manufacturer' );
 		### manufacturerURL
-		is( $device->manufacturerURL, 
-			'www.cpan.org', 
+		is( $device->manufacturerURL,
+			'www.cpan.org',
 			'UPnP::ControlPoint::Device::manufacturerURL' );
 		### modelName
-		is( $device->modelName, 
-			'PerlUPnP1', 
+		is( $device->modelName,
+			'PerlUPnP1',
 			'UPnP::ControlPoint::Device::modelName' );
 		### modelNumber
-		is( $device->modelNumber, 
-			0.01, 
+		is( $device->modelNumber,
+			0.01,
 			'UPnP::ControlPoint::Device::modelNumber' );
 		### modelURL
-		is( $device->modelURL, 
-			'www.cpan.org', 
+		is( $device->modelURL,
+			'www.cpan.org',
 			'UPnP::ControlPoint::Device::modelURL' );
 		### modelDescription
-		is( $device->modelDescription, 
-			'A device used to test the Perl UPnP implementation.', 
+		is( $device->modelDescription,
+			'A device used to test the Perl UPnP implementation.',
 			'UPnP::ControlPoint::Device::modelDescription' );
 		### serialNumber
-		is( $device->serialNumber, 
-			'0100108640-92', 
+		is( $device->serialNumber,
+			'0100108640-92',
 			'UPnP::ControlPoint::Device::serialNumber' );
 		### UPC
-		is( $device->UPC, 
-			'876078133106', 
+		is( $device->UPC,
+			'876078133106',
 			'UPnP::ControlPoint::Device::UPC' );
 		### presentationURL
-		is( $device->presentationURL, 
-			'www.cpan.org', 
+		is( $device->presentationURL,
+			'www.cpan.org',
 			'UPnP::ControlPoint::Device::presentationURL' );
 
 		my @services = $device->services;
 		### There should be one service
 		is( scalar(@services), 1, "Checking number of services" );
-		
+
 		my $service = $services[0];
 		### Service is of right type
 		isa_ok( $service, 'UPnP::ControlPoint::Service' );
-		
+
 		### serviceType
-		is( $service->serviceType, 
+		is( $service->serviceType,
 			'urn:schemas-upnp-org:service:RenderingControl:1',
 			'UPnP::ControlPoint::Service::serviceType' );
 		### serviceId
-		is( $service->serviceId, 
+		is( $service->serviceId,
 			'urn:upnp-org:serviceId:RenderingControl',
 			'UPnP::ControlPoint::Service::serviceId' );
 		### SCPDURL
@@ -217,7 +218,7 @@ sub searchCallback1 {
 		my @actions = $service->actions;
 		### Number of actions
 		is( scalar(@actions), 2, "UPnP::ControlPoint::Service::actions" );
-		
+
 		### Retrieve action by name
 		my $action = $service->getAction('ListPresets');
 		isa_ok( $action, 'UPnP::Common::Action' );
@@ -237,12 +238,12 @@ sub searchCallback1 {
 		is( $argument->name, 'InstanceID', 'UPnP::Common::Argument::name' );
 
 		### Argument relatedStateVar
-		is( $argument->relatedStateVariable, 
-			'A_ARG_TYPE_InstanceID', 
+		is( $argument->relatedStateVariable,
+			'A_ARG_TYPE_InstanceID',
 			'UPnP::Common::Argument::relatedStateVariable' );
 
 		### Argument type
-		is( $service->getArgumentType($argument), 
+		is( $service->getArgumentType($argument),
 			'int', 'UPnP::Common::Service::getArgumentType' );
 
 		my @stateVars = $service->stateVariables;
@@ -260,15 +261,15 @@ sub searchCallback1 {
 		is( $stateVar->type, 'string', 'UPnP::Common::StateVariable::type' );
 
 		### StateVariable evented
-		is( $stateVar->evented, 1, 
+		is( $stateVar->evented, 1,
 			'UPnP::Common::StateVariable::evented' );
 
 		### StateVariable SOAPType
-		is( $stateVar->SOAPType, 'string', 
+		is( $stateVar->SOAPType, 'string',
 			'UPnP::Common::StateVariable::SOAPType' );
 
 		diag("Testing action invocation");
-		
+
 		### ControlProxy
 		my $proxy = $service->controlProxy;
 		isa_ok( $proxy, 'UPnP::ControlPoint::ControlProxy' );
@@ -288,11 +289,11 @@ sub searchCallback1 {
 
 		### Result of query is correct
 		my $val = $service->queryStateVariable('LastChange');
-		is( $val, 'yesterday', 
+		is( $val, 'yesterday',
 			'UPnP::ControlPoint::Service::queryStateVariable' );
 
 		diag("Testing subscription");
-		
+
 		### Subscription
 		my $subscription = $service->subscribe(\&event);
 		isa_ok( $subscription, 'UPnP::ControlPoint::Subscription' );
@@ -322,7 +323,7 @@ sub event {
 						   "urn:schemas-upnp-org:device:TestDevice:1",
 						   \&searchCallback2);
 	}
-}	
+}
 
 
 sub searchCallback2 {
