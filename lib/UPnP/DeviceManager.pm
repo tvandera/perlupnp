@@ -333,6 +333,7 @@ use IO::Select;
 use Scalar::Util;
 use Time::HiRes;
 use UPnP::Common;
+use UPnP::ControlPoint;
 use HTTP::Response;
 
 use		vars qw($VERSION @ISA);
