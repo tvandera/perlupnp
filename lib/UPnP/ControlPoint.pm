@@ -652,7 +652,8 @@ sub addByLocation {
 	my @devices = ();
 
 	my $device = $self->_createDevice($location);
-	next unless $device;
+	return unless $device;
+
 	my $udn = $device->UDN;
 	$self->{_devices}->{$udn} = $device;
 	$self->_deviceAdded($device);
